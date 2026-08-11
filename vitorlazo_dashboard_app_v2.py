@@ -10,43 +10,35 @@ import math
 
 # ============================================================
 # KVASZ ANDRÁS REPÜLŐKLUB
-# VITORLÁZÓREPÜLÉS - METEOROLÓGIAI DASHBOARD
+# VITORLÁZÓREPÜLÉSI METEOROLÓGIAI DASHBOARD
 # ============================================================
 
 
 # ============================================================
-# 1. OLDAL KONFIGURÁCIÓ
+# 1. KONFIGURÁCIÓ
 # ============================================================
 
 st.set_page_config(
-    page_title="Kvasz András Repülőklub - Időjárás",
+    page_title="Kvasz András Repülőklub - Vitorlázó időjárás",
     page_icon="🛫",
     layout="wide"
 )
 
 
-# ============================================================
-# 2. HÁTTÉR
-# ============================================================
-
 st.markdown(
     """
     <style>
-
     .stApp {
         background: linear-gradient(
             rgba(255,255,255,0.90),
             rgba(255,255,255,0.90)
         );
-        background-attachment: fixed;
     }
 
-    .metric-card {
-        background-color: rgba(255,255,255,0.90);
-        border-radius: 12px;
-        padding: 10px;
+    .small-note {
+        font-size: 12px;
+        color: #666;
     }
-
     </style>
     """,
     unsafe_allow_html=True
@@ -54,26 +46,23 @@ st.markdown(
 
 
 # ============================================================
-# 3. CÍM
+# 2. CÍM
 # ============================================================
 
 st.title(
-    "🛫 Kelet-Magyarország 3 Napos "
-    "Vitorlázórepülő Időjárás-Előrejelzője"
+    "🛫 Kelet-Magyarország 3 napos "
+    "vitorlázórepülési időjárás"
 )
 
 st.write(
-    "Negyedórás repülésmeteorológiai előrejelzés "
-    "10:00–20:00 között."
+    "ICON-D2 + ECMWF összevetés, "
+    "negyedórás termik-, felhőalap- és "
+    "távbecsléssel."
 )
 
 
 # ============================================================
-# 4. REPÜLŐTEREK
-#
-# A koordináták mellett hozzávetőleges repülőtér-magasságot
-# is megadunk. Az Open-Meteo válaszából származó elevation
-# lesz az elsődleges, ez csak tartalék.
+# 3. REPÜLŐTEREK
 # ============================================================
 
 AIRFIELDS = {
@@ -111,24 +100,50 @@ AIRFIELDS = {
 
 
 # ============================================================
-# 5. REPÜLŐGÉPEK
+# 4. REPÜLŐGÉPEK
 # ============================================================
 
 GLIDER_TYPES = {
 
-    "KA-7": 26,
-    "SF25C Falke": 22,
-    "Astir": 38,
-    "Cirrus": 38,
-    "Cirrus VTC": 39,
-    "Standard Jantar 2": 40,
-    "Jantar 2B": 48
+    "KA-7": {
+        "glide_ratio": 26,
+        "comfort_factor": 0.48
+    },
 
+    "SF25C Falke": {
+        "glide_ratio": 22,
+        "comfort_factor": 0.45
+    },
+
+    "Astir": {
+        "glide_ratio": 38,
+        "comfort_factor": 0.55
+    },
+
+    "Cirrus": {
+        "glide_ratio": 38,
+        "comfort_factor": 0.57
+    },
+
+    "Cirrus VTC": {
+        "glide_ratio": 39,
+        "comfort_factor": 0.57
+    },
+
+    "Standard Jantar 2": {
+        "glide_ratio": 40,
+        "comfort_factor": 0.58
+    },
+
+    "Jantar 2B": {
+        "glide_ratio": 48,
+        "comfort_factor": 0.60
+    }
 }
 
 
 # ============================================================
-# 6. NAPOK
+# 5. NAPOK
 # ============================================================
 
 HUNGARIAN_DAYS = {
@@ -140,86 +155,72 @@ HUNGARIAN_DAYS = {
     "Friday": "Péntek",
     "Saturday": "Szombat",
     "Sunday": "Vasárnap"
-
 }
 
 
 today_dt = datetime.date.today()
 
-tomorrow_dt = (
-    today_dt +
-    datetime.timedelta(days=1)
-)
 
-after_tomorrow_dt = (
-    today_dt +
-    datetime.timedelta(days=2)
-)
+def day_label(date_value, prefix):
 
-
-def get_day_label(dt, prefix):
-
-    day_name = dt.strftime("%A")
-
-    day_name_hu = HUNGARIAN_DAYS.get(
-        day_name,
-        day_name
+    name = HUNGARIAN_DAYS.get(
+        date_value.strftime("%A"),
+        date_value.strftime("%A")
     )
 
     return (
         f"{prefix} "
-        f"({day_name_hu} - {dt.strftime('%m.%d.')})"
+        f"({name} - "
+        f"{date_value.strftime('%m.%d.')})"
     )
 
 
 day_options = {
 
-    get_day_label(
+    day_label(
         today_dt,
         "Ma"
     ): 0,
 
-    get_day_label(
-        tomorrow_dt,
+    day_label(
+        today_dt + datetime.timedelta(days=1),
         "Holnap"
     ): 1,
 
-    get_day_label(
-        after_tomorrow_dt,
+    day_label(
+        today_dt + datetime.timedelta(days=2),
         "Holnapután"
     ): 2
-
 }
 
 
 # ============================================================
-# 7. OLDALSÁV
+# 6. OLDALSÁV
 # ============================================================
 
 st.sidebar.header("⚙️ Beállítások")
 
 
 selected_field = st.sidebar.selectbox(
-    "Válassz repülőteret:",
-    list(AIRFIELDS.keys()),
-    index=0
+    "Repülőtér:",
+    list(AIRFIELDS.keys())
 )
 
 
 selected_glider = st.sidebar.selectbox(
-    "Repülőgép típusa:",
+    "Vitorlázórepülő:",
     list(GLIDER_TYPES.keys())
 )
 
 
-selected_day_label = st.sidebar.radio(
-    "Válassz napot:",
+selected_day = st.sidebar.radio(
+    "Nap:",
     list(day_options.keys())
 )
 
 
 day_offset = day_options[
-    selected_day_label
+    selected_day
 ]
 
 
@@ -229,30 +230,43 @@ target_date = (
 )
 
 
-glider_glide_ratio = GLIDER_TYPES[
+glider_data = GLIDER_TYPES[
     selected_glider
 ]
 
 
+glide_ratio = glider_data[
+    "glide_ratio"
+]
+
+
+comfort_factor = glider_data[
+    "comfort_factor"
+]
+
+
 # ============================================================
-# 8. SEGÉDFÜGGVÉNYEK
+# 7. SEGÉDFÜGGVÉNYEK
 # ============================================================
 
-def safe_float(value, default=np.nan):
+def safe_float(value):
 
     try:
 
         if value is None:
-            return default
+            return np.nan
 
         return float(value)
 
-    except (TypeError, ValueError):
+    except Exception:
 
-        return default
+        return np.nan
 
 
 def clamp(value, minimum, maximum):
+
+    if pd.isna(value):
+        return minimum
 
     return max(
         minimum,
@@ -263,84 +277,70 @@ def clamp(value, minimum, maximum):
     )
 
 
-def saturation_vapor_pressure(temp_c):
+def dewpoint_from_rh(
+    temperature,
+    rh
+):
 
-    """
-    Magnus-formula.
-    """
+    if pd.isna(temperature):
+        return np.nan
 
-    return (
-        6.112 *
-        math.exp(
-            (17.67 * temp_c)
-            /
-            (temp_c + 243.5)
-        )
-    )
-
-
-def dewpoint_from_rh(temp_c, rh):
-
-    """
-    Harmatpont Magnus-formulával.
-    """
+    if pd.isna(rh):
+        return np.nan
 
     rh = clamp(
         rh,
-        1.0,
-        100.0
+        1,
+        100
     )
 
     gamma = (
-        math.log(rh / 100.0)
+        math.log(rh / 100)
         +
         (
-            17.67 *
-            temp_c
+            17.27 * temperature
             /
-            (243.5 + temp_c)
+            (237.7 + temperature)
         )
     )
 
     return (
-        243.5 * gamma
+        237.7 * gamma
         /
-        (17.67 - gamma)
+        (17.27 - gamma)
     )
 
 
-def lcl_height_agl(temp_c, dewpoint_c):
+def lcl_height(
+    temperature,
+    dewpoint
+):
 
-    """
-    Becsült LCL magasság AGL-ben.
-
-    A klasszikus közelítés:
-        LCL ≈ 125 m × (T - Td)
-
-    Ez csak becslés.
-    """
+    if (
+        pd.isna(temperature)
+        or
+        pd.isna(dewpoint)
+    ):
+        return np.nan
 
     spread = max(
-        0.0,
-        temp_c - dewpoint_c
+        0,
+        temperature - dewpoint
     )
 
     return (
-        125.0 *
+        125 *
         spread
     )
 
 
-def circular_mean_degrees(values):
-
-    """
-    Körkörös szélirány-átlag.
-    """
+def circular_mean(
+    values
+):
 
     values = [
-        value
-        for value in values
-        if not pd.isna(value)
+        x for x in values
+        if not pd.isna(x)
     ]
 
     if not values:
@@ -350,217 +350,517 @@ def circular_mean_degrees(values):
         values
     )
 
-    sin_mean = np.mean(
-        np.sin(radians)
-    )
-
-    cos_mean = np.mean(
-        np.cos(radians)
-    )
-
-    result = np.degrees(
+    angle = np.degrees(
         np.arctan2(
-            sin_mean,
-            cos_mean
+            np.mean(
+                np.sin(radians)
+            ),
+            np.mean(
+                np.cos(radians)
+            )
         )
     )
 
     return int(
-        round(result) % 360
+        round(angle) % 360
     )
 
 
 # ============================================================
-# 9. VITORLÁZÓREPÜLÉSI MODELL
+# 8. ÁLTALÁNOS API LEKÉRDEZŐ
 # ============================================================
 
-def calculate_gliding_parameters(
-
-    temp,
-    dewpoint,
-    cloud_cover,
-    cloud_low,
-    solar_radiation,
-    direct_radiation,
-    pbl_height,
-    cape,
-    wind_speed,
-    temp_1000,
-    temp_950,
-    temp_900,
-    temp_850,
-    height_1000,
-    height_950,
-    height_900,
-    height_850,
-    elevation
-
+def request_weather_api(
+    url,
+    params
 ):
 
-    # --------------------------------------------------------
-    # 1. LCL
-    # --------------------------------------------------------
+    try:
 
-    lcl_agl = lcl_height_agl(
-        temp,
+        response = requests.get(
+            url,
+            params=params,
+            timeout=20,
+            headers={
+                "User-Agent":
+                "Kvasz-Andras-Gliding-Dashboard/3.0"
+            }
+        )
+
+        if response.status_code != 200:
+
+            return None
+
+        return response.json()
+
+    except Exception:
+
+        return None
+
+
+# ============================================================
+# 9. IDŐSOR SEGÉD
+# ============================================================
+
+def create_time_dict(
+    response,
+    variables
+):
+
+    if (
+        response is None
+        or
+        "hourly" not in response
+    ):
+
+        return {}
+
+
+    hourly = response[
+        "hourly"
+    ]
+
+
+    if "time" not in hourly:
+
+        return {}
+
+
+    result = {}
+
+
+    for i, time_string in enumerate(
+        hourly["time"]
+    ):
+
+        try:
+
+            dt = datetime.datetime.fromisoformat(
+                time_string
+            )
+
+        except Exception:
+
+            continue
+
+
+        row = {}
+
+
+        for variable in variables:
+
+            try:
+
+                row[variable] = safe_float(
+                    hourly[
+                        variable
+                    ][i]
+                )
+
+            except Exception:
+
+                row[variable] = np.nan
+
+
+        result[dt] = row
+
+
+    return result
+
+
+# ============================================================
+# 10. IDŐBELI INTERPOLÁCIÓ
+# ============================================================
+
+def interpolate_value(
+    data,
+    dt,
+    variable
+):
+
+    if not data:
+        return np.nan
+
+
+    if dt in data:
+
+        return data[
+            dt
+        ].get(
+            variable,
+            np.nan
+        )
+
+
+    previous = dt.replace(
+        minute=0,
+        second=0,
+        microsecond=0
+    )
+
+
+    following = (
+        previous +
+        datetime.timedelta(hours=1)
+    )
+
+
+    if previous not in data:
+
+        return np.nan
+
+
+    v1 = data[
+        previous
+    ].get(
+        variable,
+        np.nan
+    )
+
+
+    if following not in data:
+
+        return v1
+
+
+    v2 = data[
+        following
+    ].get(
+        variable,
+        np.nan
+    )
+
+
+    if pd.isna(v1):
+        return v2
+
+    if pd.isna(v2):
+        return v1
+
+
+    weight = (
+        dt - previous
+    ).total_seconds() / 3600
+
+
+    return (
+        v1 * (1 - weight)
+        +
+        v2 * weight
+    )
+
+
+# ============================================================
+# 11. SZÉLIRÁNY INTERPOLÁCIÓ
+# ============================================================
+
+def interpolate_direction(
+    data,
+    dt,
+    variable
+):
+
+    d1 = interpolate_value(
+        data,
+        dt,
+        variable
+    )
+
+    if pd.isna(d1):
+
+        return np.nan
+
+
+    return d1
+
+
+# ============================================================
+# 12. MODELLFELHŐALAP
+#
+# A nyomásszinteken található felhőzet / RH alapján
+# megkeressük az első jelentős nedves/felhős réteget.
+#
+# Ez NEM helyettesíti a radioszondát.
+# ============================================================
+
+def model_cloud_base(
+    profile,
+    elevation
+):
+
+    levels = []
+
+    for pressure in [
+        1000,
+        975,
+        950,
+        925,
+        900,
+        850,
+        800
+    ]:
+
+        h = profile.get(
+            f"height_{pressure}",
+            np.nan
+        )
+
+        rh = profile.get(
+            f"rh_{pressure}",
+            np.nan
+        )
+
+        cloud = profile.get(
+            f"cloud_{pressure}",
+            np.nan
+        )
+
+
+        if pd.isna(h):
+            continue
+
+
+        levels.append({
+
+            "height": h,
+            "rh": rh,
+            "cloud": cloud
+
+        })
+
+
+    if not levels:
+
+        return np.nan
+
+
+    levels = sorted(
+        levels,
+        key=lambda x: x["height"]
+    )
+
+
+    # A repülőtér közvetlen környezetét
+    # nem kezeljük felhőalapként.
+    minimum_height = (
+        elevation + 100
+    )
+
+
+    for level in levels:
+
+        if level["height"] < minimum_height:
+
+            continue
+
+
+        rh = level["rh"]
+
+        cloud = level["cloud"]
+
+
+        # Jelentős nedvesség / felhőréteg.
+        if (
+            (
+                not pd.isna(cloud)
+                and
+                cloud >= 60
+            )
+            or
+            (
+                not pd.isna(rh)
+                and
+                rh >= 90
+            )
+        ):
+
+            return (
+                level["height"]
+                -
+                elevation
+            )
+
+
+    return np.nan
+
+
+# ============================================================
+# 13. KONSZENZUS FELHŐALAP
+#
+# Három információ:
+#
+# 1. LCL
+# 2. modell nyomásszinti felhőalap
+# 3. alacsonyszintű felhőzet
+#
+# Konzervatív, vitorlázó célú értéket készítünk.
+# ============================================================
+
+def calculate_cloud_base(
+    temperature,
+    dewpoint,
+    cloud_cover_low,
+    lcl,
+    model_base
+):
+
+    candidates = []
+
+
+    if not pd.isna(lcl):
+
+        candidates.append(
+            lcl
+        )
+
+
+    if not pd.isna(model_base):
+
+        candidates.append(
+            model_base
+        )
+
+
+    if not candidates:
+
+        return np.nan
+
+
+    # Ha a modell ténylegesen felhőréteget jelez,
+    # annak nagyobb súlyt adunk.
+    if not pd.isna(model_base):
+
+        base = (
+            0.35 * lcl
+            +
+            0.65 * model_base
+        )
+
+    else:
+
+        base = lcl
+
+
+    # Erős alacsonyszintű felhőzet esetén
+    # nem engedjük irreálisan magasra a becslést.
+    if (
+        not pd.isna(cloud_cover_low)
+        and
+        cloud_cover_low >= 70
+    ):
+
+        base *= 0.90
+
+
+    # Nagyon száraz alsó légréteg esetén
+    # a Cu-alap bizonytalanabb.
+    spread = (
+        temperature -
         dewpoint
     )
 
 
-    lcl_msl = (
-        elevation +
-        lcl_agl
+    if spread > 12:
+
+        base *= 0.94
+
+
+    # Minimum és maximum reális tartomány.
+    base = clamp(
+        base,
+        300,
+        3500
     )
 
 
-    # --------------------------------------------------------
-    # 2. HŐMÉRSÉKLETI GRADIENS
-    #
-    # Környezeti lapse rate.
-    #
-    # A troposzférában a 6–7 °C/km körüli gradiens kedvez
-    # a konvekciónak. A kisebb gradiens stabilabb.
-    # --------------------------------------------------------
-
-    lapse_rates = []
+    return int(
+        round(base / 50)
+        * 50
+    )
 
 
-    levels = [
+# ============================================================
+# 14. TERMIKMODELL
+# ============================================================
 
-        (
-            temp_1000,
-            height_1000,
-            temp_950,
-            height_950
-        ),
+def calculate_thermal_strength(
+    temperature,
+    dewpoint,
+    cloud_cover,
+    solar,
+    pbl,
+    cape,
+    lapse_rate,
+    wind_speed,
+    cloud_base
+):
 
-        (
-            temp_950,
-            height_950,
-            temp_900,
-            height_900
-        ),
-
-        (
-            temp_900,
-            height_900,
-            temp_850,
-            height_850
-        )
-
-    ]
-
-
-    for (
-        t_low,
-        h_low,
-        t_high,
-        h_high
-    ) in levels:
-
-        if any(
-            pd.isna(value)
-            for value in [
-                t_low,
-                h_low,
-                t_high,
-                h_high
-            ]
-        ):
-            continue
-
-
-        dh = (
-            h_high -
-            h_low
-        )
-
-
-        if dh > 100:
-
-            lapse = (
-                t_low -
-                t_high
-            ) / dh * 1000
-
-            lapse_rates.append(
-                lapse
-            )
-
-
-    if lapse_rates:
-
-        mean_lapse = float(
-            np.mean(
-                lapse_rates
-            )
-        )
-
-    else:
-
-        mean_lapse = 6.0
+    if pd.isna(temperature):
+        return 0.0
 
 
     # --------------------------------------------------------
-    # 3. STABILITÁS / INVERZIÓ
-    # --------------------------------------------------------
-
-    stability_factor = 1.0
-
-
-    if mean_lapse < 3.0:
-
-        stability_factor = 0.25
-
-    elif mean_lapse < 4.0:
-
-        stability_factor = 0.50
-
-    elif mean_lapse < 5.0:
-
-        stability_factor = 0.72
-
-    elif mean_lapse < 6.0:
-
-        stability_factor = 0.88
-
-    elif mean_lapse < 7.0:
-
-        stability_factor = 1.00
-
-    elif mean_lapse < 8.0:
-
-        stability_factor = 1.08
-
-    else:
-
-        stability_factor = 1.12
-
-
-    # --------------------------------------------------------
-    # 4. NAPSUGÁRZÁS
+    # NAPSUGÁRZÁS
     # --------------------------------------------------------
 
     solar_factor = clamp(
-        solar_radiation / 700.0,
-        0.0,
-        1.25
-    )
-
-
-    direct_factor = clamp(
-        direct_radiation / 600.0,
-        0.0,
-        1.20
+        solar / 700,
+        0,
+        1.15
     )
 
 
     # --------------------------------------------------------
-    # 5. FELHŐZETI KORREKCIÓ
+    # HŐMÉRSÉKLETI GRADIENS
     # --------------------------------------------------------
 
-    cloud_factor = 1.0
+    if pd.isna(lapse_rate):
 
+        lapse_factor = 0.80
+
+    else:
+
+        lapse_factor = np.interp(
+            lapse_rate,
+            [
+                2.5,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0
+            ],
+            [
+                0.25,
+                0.50,
+                0.72,
+                0.90,
+                1.05,
+                1.10
+            ]
+        )
+
+
+    # --------------------------------------------------------
+    # PBL
+    # --------------------------------------------------------
+
+    if pd.isna(pbl):
+
+        pbl_factor = 0.80
+
+    else:
+
+        pbl_factor = clamp(
+            pbl / 1400,
+            0.40,
+            1.20
+        )
+
+
+    # --------------------------------------------------------
+    # FELHŐZET
+    # --------------------------------------------------------
 
     if cloud_cover < 20:
 
@@ -568,72 +868,94 @@ def calculate_gliding_parameters(
 
     elif cloud_cover < 40:
 
-        cloud_factor = 0.94
+        cloud_factor = 0.95
 
     elif cloud_cover < 60:
 
-        cloud_factor = 0.82
+        cloud_factor = 0.85
 
     elif cloud_cover < 75:
 
-        cloud_factor = 0.65
+        cloud_factor = 0.72
 
     elif cloud_cover < 90:
 
-        cloud_factor = 0.45
+        cloud_factor = 0.50
 
     else:
 
-        cloud_factor = 0.20
+        cloud_factor = 0.25
 
 
     # --------------------------------------------------------
-    # 6. PBL / HATÁRRÉTEG
+    # NEDVESSÉG
     # --------------------------------------------------------
 
-    if pd.isna(pbl_height):
+    if pd.isna(dewpoint):
 
-        pbl_factor = 0.8
+        moisture_factor = 0.85
 
     else:
 
-        pbl_factor = clamp(
-            pbl_height / 1500.0,
-            0.35,
-            1.35
+        spread = (
+            temperature -
+            dewpoint
         )
 
+        if spread < 2:
+
+            moisture_factor = 0.70
+
+        elif spread < 4:
+
+            moisture_factor = 0.90
+
+        elif spread < 8:
+
+            moisture_factor = 1.00
+
+        elif spread < 12:
+
+            moisture_factor = 0.95
+
+        else:
+
+            moisture_factor = 0.85
+
 
     # --------------------------------------------------------
-    # 7. CAPE
-    #
-    # CAPE nem egyenlő a termik erősségével.
-    # Ezért csak részleges súlyt kap.
+    # CAPE
     # --------------------------------------------------------
 
     if pd.isna(cape):
 
-        cape_factor = 0.75
+        cape_factor = 0.90
 
     else:
 
-        cape_factor = (
-            0.70
-            +
-            0.30 *
-            clamp(
-                cape / 1000.0,
-                0.0,
-                1.0
-            )
+        cape_factor = np.interp(
+            cape,
+            [
+                0,
+                100,
+                300,
+                600,
+                1000,
+                1500
+            ],
+            [
+                0.85,
+                0.90,
+                0.96,
+                1.02,
+                1.07,
+                1.12
+            ]
         )
 
 
     # --------------------------------------------------------
-    # 8. SZÉL KORREKCIÓ
-    #
-    # Erős szél keverheti a határréteget, de a termik
-    # szerveződését és kihasználhatóságát ronthatja.
+    # SZÉL
     # --------------------------------------------------------
 
     if wind_speed < 10:
@@ -642,15 +964,15 @@ def calculate_gliding_parameters(
 
     elif wind_speed < 18:
 
-        wind_factor = 0.96
+        wind_factor = 0.97
 
     elif wind_speed < 25:
 
-        wind_factor = 0.88
+        wind_factor = 0.90
 
     elif wind_speed < 32:
 
-        wind_factor = 0.76
+        wind_factor = 0.78
 
     elif wind_speed < 40:
 
@@ -662,379 +984,410 @@ def calculate_gliding_parameters(
 
 
     # --------------------------------------------------------
-    # 9. NAPPALI KONVEKCIÓ
+    # FELHŐALAP / KONVEKTÍV TÉR
     # --------------------------------------------------------
 
-    # A termikus aktivitás napszakfüggő.
-    # 14:00 körül a legerősebb, majd fokozatosan gyengül.
+    if pd.isna(cloud_base):
 
-    current_hour = datetime.datetime.now().hour
-
-    # Ezt később az aktuális adatpont órája felülírja.
-    daylight_factor = 1.0
-
-
-    # --------------------------------------------------------
-    # 10. ALAP KONVEKTÍV POTENCIÁL
-    # --------------------------------------------------------
-
-    # A modell szándékosan több tényezőből áll.
-    # Nem egyetlen képletből próbáljuk megjósolni
-    # a termiksebességet.
-
-    thermal_score = (
-
-        0.28 *
-        solar_factor
-
-        +
-
-        0.14 *
-        direct_factor
-
-        +
-
-        0.18 *
-        stability_factor
-
-        +
-
-        0.12 *
-        pbl_factor
-
-        +
-
-        0.10 *
-        cape_factor
-
-        +
-
-        0.10 *
-        cloud_factor
-
-        +
-
-        0.08 *
-        wind_factor
-
-    )
-
-
-    # --------------------------------------------------------
-    # 11. HŐMÉRSÉKLET / HARMATPONT
-    #
-    # Túl nagy spread száraz, gyenge Cu-környezetet jelenthet.
-    # Mérsékelt spread gyakran kedvez a Cu-képződésnek.
-    # --------------------------------------------------------
-
-    spread = (
-        temp -
-        dewpoint
-    )
-
-
-    if spread < 2:
-
-        moisture_factor = 0.80
-
-    elif spread < 5:
-
-        moisture_factor = 1.05
-
-    elif spread < 8:
-
-        moisture_factor = 1.00
-
-    elif spread < 12:
-
-        moisture_factor = 0.88
+        height_factor = 0.80
 
     else:
 
-        moisture_factor = 0.70
-
-
-    thermal_score *= (
-        moisture_factor
-    )
-
-
-    # --------------------------------------------------------
-    # 12. TERMÉSZETES SKÁLÁZÁS
-    #
-    # A modellből egy becsült átlagos termiksebességet készítünk.
-    # Ez NEM garantált emelés.
-    # --------------------------------------------------------
-
-    thermal_strength = (
-        thermal_score *
-        3.8
-    )
-
-
-    # CAPE erősen konvektív helyzetben
-    # kismértékben növelheti az értéket.
-
-    if not pd.isna(cape):
-
-        if cape > 1500:
-
-            thermal_strength *= 1.15
-
-        elif cape > 800:
-
-            thermal_strength *= 1.08
-
-
-    # --------------------------------------------------------
-    # 13. ERŐS STABILITÁS / INVERZIÓ
-    # --------------------------------------------------------
-
-    if mean_lapse < 3:
-
-        thermal_strength *= 0.55
-
-
-    # --------------------------------------------------------
-    # 14. VÉGSŐ LIMIT
-    # --------------------------------------------------------
-
-    thermal_strength = clamp(
-        thermal_strength,
-        0.0,
-        5.0
-    )
-
-
-    thermal_strength = round(
-        thermal_strength,
-        1
-    )
-
-
-    # --------------------------------------------------------
-    # 15. FELHŐALAP
-    # --------------------------------------------------------
-
-    # LCL a fő becslés.
-
-    cloud_base_agl = lcl_agl
-
-    cloud_base_msl = lcl_msl
-
-
-    # Ha a PBL nagyon alacsony, a termikus Cu-képződés
-    # korlátozott lehet.
-
-    if not pd.isna(pbl_height):
-
-        if pbl_height < cloud_base_agl:
-
-            convective_cloud_base_agl = (
-                pbl_height * 0.90
-            )
-
-        else:
-
-            convective_cloud_base_agl = (
-                cloud_base_agl
-            )
-
-    else:
-
-        convective_cloud_base_agl = (
-            cloud_base_agl
+        height_factor = np.interp(
+            cloud_base,
+            [
+                400,
+                700,
+                1000,
+                1500,
+                2000,
+                2500
+            ],
+            [
+                0.55,
+                0.70,
+                0.85,
+                1.00,
+                1.08,
+                1.12
+            ]
         )
 
 
-    convective_cloud_base_agl = max(
-        150,
-        convective_cloud_base_agl
+    # --------------------------------------------------------
+    # ÖSSZESÍTÉS
+    # --------------------------------------------------------
+
+    score = (
+
+        0.24 * solar_factor
+
+        +
+
+        0.22 * lapse_factor
+
+        +
+
+        0.15 * pbl_factor
+
+        +
+
+        0.12 * cloud_factor
+
+        +
+
+        0.10 * moisture_factor
+
+        +
+
+        0.07 * cape_factor
+
+        +
+
+        0.05 * wind_factor
+
+        +
+
+        0.05 * height_factor
+
     )
 
 
-    convective_cloud_base_msl = (
-        elevation +
-        convective_cloud_base_agl
+    # Alap használható termik.
+    #
+    # Nem a maximális turbulens feláramot,
+    # hanem a várható használható emelést becsüljük.
+
+    thermal = (
+        score *
+        3.25
     )
 
 
-    # --------------------------------------------------------
-    # 16. TÚLFEJLŐDÉSI KOCKÁZAT
-    # --------------------------------------------------------
+    # Stabil réteg erős büntetése.
 
-    overdevelopment_score = 0.0
+    if (
+        not pd.isna(lapse_rate)
+        and
+        lapse_rate < 3.5
+    ):
 
-
-    if cloud_cover > 70:
-
-        overdevelopment_score += 0.35
-
-
-    if cloud_cover > 85:
-
-        overdevelopment_score += 0.25
+        thermal *= 0.72
 
 
-    if not pd.isna(cape):
-
-        if cape > 500:
-
-            overdevelopment_score += 0.15
-
-        if cape > 1000:
-
-            overdevelopment_score += 0.20
-
-
-    if spread < 4:
-
-        overdevelopment_score += 0.15
-
-
-    overdevelopment_score = clamp(
-        overdevelopment_score,
+    thermal = clamp(
+        thermal,
         0,
+        4.5
+    )
+
+
+    return round(
+        thermal,
         1
     )
 
 
-    if overdevelopment_score < 0.25:
+# ============================================================
+# 15. MODELLKONSZENZUS
+# ============================================================
 
-        overdevelopment = "Alacsony"
+def calculate_model_consensus(
+    icon_value,
+    ecmwf_value
+):
 
-    elif overdevelopment_score < 0.55:
+    if (
+        pd.isna(icon_value)
+        and
+        pd.isna(ecmwf_value)
+    ):
 
-        overdevelopment = "Közepes"
+        return (
+            np.nan,
+            "Nincs adat"
+        )
 
-    elif overdevelopment_score < 0.75:
 
-        overdevelopment = "Magas"
+    if pd.isna(icon_value):
+
+        return (
+            ecmwf_value,
+            "ECMWF"
+        )
+
+
+    if pd.isna(ecmwf_value):
+
+        return (
+            icon_value,
+            "ICON-D2"
+        )
+
+
+    mean_value = (
+        icon_value +
+        ecmwf_value
+    ) / 2
+
+
+    difference = abs(
+        icon_value -
+        ecmwf_value
+    )
+
+
+    if difference < 0.3:
+
+        confidence = "🟢 Magas"
+
+    elif difference < 0.7:
+
+        confidence = "🟡 Közepes"
 
     else:
 
-        overdevelopment = "Nagyon magas"
+        confidence = "🔴 Alacsony"
+
+
+    return (
+        mean_value,
+        confidence
+    )
+
+
+# ============================================================
+# 16. KOMFORTOS TÁV
+# ============================================================
+
+def calculate_recommended_distance(
+    cloud_base,
+    thermal_strength,
+    wind_speed,
+    wind_gust,
+    glide_ratio,
+    comfort_factor,
+    forecast_confidence
+):
+
+    if pd.isna(cloud_base):
+
+        return 0
 
 
     # --------------------------------------------------------
-    # 17. REPÜLHETŐSÉGI KATEGÓRIA
+    # HASZNÁLHATÓ MAGASSÁG
+    #
+    # Nem számítjuk bele az egész felhőalapot.
+    #
+    # 300 m: minimális biztonsági tartalék
+    # 100 m: alacsony szintű forduló/útvonal tartalék
     # --------------------------------------------------------
 
-    if thermal_strength < 0.6:
+    usable_height = (
+        cloud_base -
+        400
+    )
 
-        flyability = "Gyenge / termikszegény"
+
+    if usable_height < 300:
+
+        return 0
+
+
+    # --------------------------------------------------------
+    # ELMÉLETI SIKLÓTÁV
+    # --------------------------------------------------------
+
+    theoretical_distance = (
+        usable_height
+        /
+        1000
+        *
+        glide_ratio
+    )
+
+
+    # --------------------------------------------------------
+    # TERMIK KORREKCIÓ
+    # --------------------------------------------------------
+
+    if thermal_strength < 0.7:
+
+        thermal_factor = 0.50
 
     elif thermal_strength < 1.2:
 
-        flyability = "Gyenge"
+        thermal_factor = 0.65
 
-    elif thermal_strength < 2.0:
+    elif thermal_strength < 1.8:
 
-        flyability = "Mérsékelt"
+        thermal_factor = 0.78
 
-    elif thermal_strength < 3.0:
+    elif thermal_strength < 2.5:
 
-        flyability = "Jó"
+        thermal_factor = 0.90
 
-    elif thermal_strength < 4.0:
+    elif thermal_strength < 3.2:
 
-        flyability = "Nagyon jó"
+        thermal_factor = 1.00
 
     else:
 
-        flyability = "Erős"
+        thermal_factor = 1.05
 
 
-    return {
+    # --------------------------------------------------------
+    # SZÉL KORREKCIÓ
+    # --------------------------------------------------------
 
-        "thermal_strength":
-            thermal_strength,
+    if wind_speed < 15:
 
-        "cloud_base_agl":
-            int(round(
-                convective_cloud_base_agl
-            )),
+        wind_factor = 1.00
 
-        "cloud_base_msl":
-            int(round(
-                convective_cloud_base_msl
-            )),
+    elif wind_speed < 22:
 
-        "lcl_agl":
-            int(round(
-                lcl_agl
-            )),
+        wind_factor = 0.92
 
-        "pbl_height":
-            int(round(pbl_height))
-            if not pd.isna(pbl_height)
-            else np.nan,
+    elif wind_speed < 30:
 
-        "cape":
-            cape,
+        wind_factor = 0.82
 
-        "lapse_rate":
-            round(
-                mean_lapse,
-                1
-            ),
+    elif wind_speed < 38:
 
-        "overdevelopment":
-            overdevelopment,
+        wind_factor = 0.68
 
-        "flyability":
-            flyability
-    }
+    else:
+
+        wind_factor = 0.50
+
+
+    # Széllökés külön büntetés.
+
+    if wind_gust > 35:
+
+        wind_factor *= 0.85
+
+    elif wind_gust > 30:
+
+        wind_factor *= 0.92
+
+
+    # --------------------------------------------------------
+    # ELŐREJELZÉSI BIZONYTALANSÁG
+    # --------------------------------------------------------
+
+    if "Alacsony" in str(
+        forecast_confidence
+    ):
+
+        confidence_factor = 0.75
+
+    elif "Közepes" in str(
+        forecast_confidence
+    ):
+
+        confidence_factor = 0.88
+
+    else:
+
+        confidence_factor = 1.00
+
+
+    # --------------------------------------------------------
+    # VÉGSŐ TÁV
+    # --------------------------------------------------------
+
+    recommended = (
+
+        theoretical_distance
+
+        *
+
+        comfort_factor
+
+        *
+
+        thermal_factor
+
+        *
+
+        wind_factor
+
+        *
+
+        confidence_factor
+
+    )
+
+
+    # --------------------------------------------------------
+    # KEREKÍTÉS
+    # --------------------------------------------------------
+
+    if recommended < 5:
+
+        return 0
+
+
+    if recommended < 20:
+
+        step = 1
+
+    elif recommended < 50:
+
+        step = 5
+
+    else:
+
+        step = 10
+
+
+    return int(
+        round(
+            recommended / step
+        )
+        * step
+    )
 
 
 # ============================================================
-# 10. FŐ IDŐJÁRÁSI LEKÉRDEZÉS
+# 17. API ADATOK
 # ============================================================
 
-def get_pure_live_weather(
+def get_weather_data(
     field,
     day_idx
 ):
 
-    data_rows = []
-
-
-    target_date_local = (
-        today_dt +
-        datetime.timedelta(days=day_idx)
-    )
-
-
-    start_time = datetime.datetime.combine(
-        target_date_local,
-        datetime.time(10, 0)
-    )
-
-
-    end_time = datetime.datetime.combine(
-        target_date_local,
-        datetime.time(20, 0)
-    )
-
-
-    lat = AIRFIELDS[field]["lat"]
-    lon = AIRFIELDS[field]["lon"]
-
-    fallback_elevation = AIRFIELDS[
+    config = AIRFIELDS[
         field
-    ]["elevation"]
+    ]
+
+
+    lat = config[
+        "lat"
+    ]
+
+    lon = config[
+        "lon"
+    ]
+
+    elevation = config[
+        "elevation"
+    ]
 
 
     # --------------------------------------------------------
-    # OPEN-METEO
+    # ICON-D2
     # --------------------------------------------------------
 
-    url = (
-        "https://api.open-meteo.com/v1/forecast"
+    icon_url = (
+        "https://api.open-meteo.com/v1/dwd-icon"
     )
 
 
-    hourly_variables = [
+    icon_variables = [
 
         "temperature_2m",
         "relative_humidity_2m",
@@ -1046,8 +1399,6 @@ def get_pure_live_weather(
 
         "cloud_cover",
         "cloud_cover_low",
-        "cloud_cover_mid",
-        "cloud_cover_high",
 
         "shortwave_radiation",
         "direct_radiation",
@@ -1056,945 +1407,864 @@ def get_pure_live_weather(
         "cape",
 
         "temperature_1000hPa",
+        "temperature_975hPa",
         "temperature_950hPa",
+        "temperature_925hPa",
         "temperature_900hPa",
         "temperature_850hPa",
 
+        "relative_humidity_1000hPa",
+        "relative_humidity_975hPa",
+        "relative_humidity_950hPa",
+        "relative_humidity_925hPa",
+        "relative_humidity_900hPa",
+        "relative_humidity_850hPa",
+
+        "cloud_cover_1000hPa",
+        "cloud_cover_975hPa",
+        "cloud_cover_950hPa",
+        "cloud_cover_925hPa",
+        "cloud_cover_900hPa",
+        "cloud_cover_850hPa",
+
         "geopotential_height_1000hPa",
+        "geopotential_height_975hPa",
         "geopotential_height_950hPa",
+        "geopotential_height_925hPa",
         "geopotential_height_900hPa",
         "geopotential_height_850hPa"
 
     ]
 
 
-    params = {
+    icon_params = {
 
-        "latitude":
-            lat,
-
-        "longitude":
-            lon,
+        "latitude": lat,
+        "longitude": lon,
 
         "hourly":
             ",".join(
-                hourly_variables
+                icon_variables
             ),
-
-        "wind_speed_unit":
-            "kmh",
 
         "timezone":
             "Europe/Budapest",
 
+        "wind_speed_unit":
+            "kmh",
+
         "forecast_days":
             3,
 
-        # ECMWF IFS:
-        # globális, jó választás Közép-Európára.
+        "models":
+            "icon_d2"
+
+    }
+
+
+    icon_response = request_weather_api(
+        icon_url,
+        icon_params
+    )
+
+
+    icon_data = create_time_dict(
+        icon_response,
+        icon_variables
+    )
+
+
+    # --------------------------------------------------------
+    # ECMWF
+    # --------------------------------------------------------
+
+    ecmwf_url = (
+        "https://api.open-meteo.com/v1/ecmwf"
+    )
+
+
+    ecmwf_variables = [
+
+        "temperature_2m",
+        "relative_humidity_2m",
+        "dew_point_2m",
+
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "wind_gusts_10m",
+
+        "cloud_cover",
+        "cloud_cover_low",
+
+        "shortwave_radiation",
+        "direct_radiation",
+
+        "boundary_layer_height",
+        "cape"
+
+    ]
+
+
+    ecmwf_params = {
+
+        "latitude": lat,
+        "longitude": lon,
+
+        "hourly":
+            ",".join(
+                ecmwf_variables
+            ),
+
+        "timezone":
+            "Europe/Budapest",
+
+        "wind_speed_unit":
+            "kmh",
+
+        "forecast_days":
+            3,
+
         "models":
             "ecmwf_ifs025"
 
     }
 
 
-    headers = {
-
-        "User-Agent":
-            "Kvasz-Andras-Gliding-Weather-Dashboard/2.0"
-
-    }
+    ecmwf_response = request_weather_api(
+        ecmwf_url,
+        ecmwf_params
+    )
 
 
-    # --------------------------------------------------------
-    # API KÉRÉS
-    # --------------------------------------------------------
-
-    try:
-
-        response = requests.get(
-
-            url,
-
-            params=params,
-
-            headers=headers,
-
-            timeout=20
-
-        )
-
-
-        if response.status_code != 200:
-
-            st.error(
-                "❌ Open-Meteo API hiba: "
-                f"HTTP {response.status_code}"
-            )
-
-            try:
-
-                st.code(
-                    response.text[:1000]
-                )
-
-            except Exception:
-
-                pass
-
-            st.stop()
-
-
-        res = response.json()
-
-
-    except requests.exceptions.Timeout:
-
-        st.error(
-            "❌ Az időjárási szerver nem válaszolt "
-            "20 másodpercen belül."
-        )
-
-        st.stop()
-
-
-    except requests.exceptions.ConnectionError:
-
-        st.error(
-            "❌ Nem sikerült kapcsolódni "
-            "az Open-Meteo szerverhez."
-        )
-
-        st.stop()
-
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"❌ Hálózati hiba: {e}"
-        )
-
-        st.stop()
-
-
-    except ValueError:
-
-        st.error(
-            "❌ Az API nem érvényes JSON adatot küldött."
-        )
-
-        st.stop()
-
-
-    # --------------------------------------------------------
-    # API ELLENŐRZÉS
-    # --------------------------------------------------------
-
-    if "hourly" not in res:
-
-        st.error(
-            "❌ Hiányzik az API-válasz 'hourly' része."
-        )
-
-        st.stop()
-
-
-    hourly = res[
-        "hourly"
-    ]
-
-
-    # --------------------------------------------------------
-    # TÉNYLEGES ELEVATION
-    # --------------------------------------------------------
-
-    elevation = safe_float(
-        res.get(
-            "elevation",
-            fallback_elevation
-        ),
-        fallback_elevation
+    ecmwf_data = create_time_dict(
+        ecmwf_response,
+        ecmwf_variables
     )
 
 
     # --------------------------------------------------------
-    # IDŐPONTOK
+    # ELEVATION
     # --------------------------------------------------------
 
-    try:
+    if (
+        icon_response
+        and
+        "elevation" in icon_response
+    ):
 
-        api_times = [
-
-            datetime.datetime.fromisoformat(
-                value
-            )
-
-            for value in hourly[
-                "time"
+        elevation = safe_float(
+            icon_response[
+                "elevation"
             ]
-
-        ]
-
-    except Exception as e:
-
-        st.error(
-            f"❌ Az időpontok feldolgozása sikertelen: {e}"
         )
-
-        st.stop()
-
-
-    # --------------------------------------------------------
-    # ADATOK DICTIONARY
-    # --------------------------------------------------------
-
-    weather_data = {}
-
-
-    for i, dt_value in enumerate(
-        api_times
-    ):
-
-        row = {}
-
-
-        for variable in hourly_variables:
-
-            try:
-
-                row[variable] = safe_float(
-                    hourly[
-                        variable
-                    ][i]
-                )
-
-            except (
-                KeyError,
-                IndexError,
-                TypeError
-            ):
-
-                row[variable] = np.nan
-
-
-        weather_data[
-            dt_value
-        ] = row
-
-
-    # --------------------------------------------------------
-    # INTERPOLÁCIÓ
-    # --------------------------------------------------------
-
-    def interpolate(
-        current_dt,
-        variable
-    ):
-
-        if current_dt in weather_data:
-
-            return weather_data[
-                current_dt
-            ][variable]
-
-
-        previous_hour = (
-            current_dt.replace(
-                minute=0,
-                second=0,
-                microsecond=0
-            )
-        )
-
-
-        next_hour = (
-            previous_hour +
-            datetime.timedelta(
-                hours=1
-            )
-        )
-
-
-        if previous_hour not in weather_data:
-
-            return np.nan
-
-
-        if next_hour not in weather_data:
-
-            return weather_data[
-                previous_hour
-            ][variable]
-
-
-        v1 = weather_data[
-            previous_hour
-        ][variable]
-
-
-        v2 = weather_data[
-            next_hour
-        ][variable]
-
-
-        if pd.isna(v1):
-
-            return v2
-
-
-        if pd.isna(v2):
-
-            return v1
-
-
-        weight = (
-            (
-                current_dt -
-                previous_hour
-            ).total_seconds()
-            /
-            3600.0
-        )
-
-
-        return (
-            v1 * (1 - weight)
-            +
-            v2 * weight
-        )
-
-
-    # --------------------------------------------------------
-    # SZÉLIRÁNY INTERPOLÁCIÓ
-    # --------------------------------------------------------
-
-    def interpolate_direction(
-        current_dt
-    ):
-
-        if current_dt in weather_data:
-
-            return weather_data[
-                current_dt
-            ]["wind_direction_10m"]
-
-
-        previous_hour = (
-            current_dt.replace(
-                minute=0,
-                second=0,
-                microsecond=0
-            )
-        )
-
-
-        next_hour = (
-            previous_hour +
-            datetime.timedelta(
-                hours=1
-            )
-        )
-
-
-        if (
-            previous_hour not in weather_data
-            or
-            next_hour not in weather_data
-        ):
-
-            return np.nan
-
-
-        d1 = weather_data[
-            previous_hour
-        ]["wind_direction_10m"]
-
-
-        d2 = weather_data[
-            next_hour
-        ]["wind_direction_10m"]
-
-
-        if pd.isna(d1):
-
-            return d2
-
-
-        if pd.isna(d2):
-
-            return d1
-
-
-        weight = (
-            (
-                current_dt -
-                previous_hour
-            ).total_seconds()
-            /
-            3600.0
-        )
-
-
-        difference = (
-            (d2 - d1 + 180)
-            % 360
-        ) - 180
-
-
-        return (
-            d1 +
-            difference * weight
-        ) % 360
 
 
     # --------------------------------------------------------
     # 41 NEGYEDÓRÁS PONT
     # --------------------------------------------------------
 
+    start = datetime.datetime.combine(
+        target_date,
+        datetime.time(10, 0)
+    )
+
+
+    rows = []
+
+
     for i in range(41):
 
-        current_time = (
-            start_time +
+        current = (
+            start +
             datetime.timedelta(
                 minutes=15 * i
             )
         )
 
 
-        time_str = (
-            current_time.strftime(
-                "%H:%M"
-            )
-        )
-
-
         # ----------------------------------------------------
-        # METEOROLÓGIAI ADATOK
+        # ICON
         # ----------------------------------------------------
 
-        temp = interpolate(
-            current_time,
+        temp_icon = interpolate_value(
+            icon_data,
+            current,
             "temperature_2m"
         )
 
-
-        rh = interpolate(
-            current_time,
-            "relative_humidity_2m"
-        )
-
-
-        dewpoint = interpolate(
-            current_time,
+        dew_icon = interpolate_value(
+            icon_data,
+            current,
             "dew_point_2m"
         )
 
-
-        if pd.isna(dewpoint) and not pd.isna(temp):
-
-            dewpoint = dewpoint_from_rh(
-                temp,
-                rh
-            )
-
-
-        cloud_cover = interpolate(
-            current_time,
-            "cloud_cover"
+        rh_icon = interpolate_value(
+            icon_data,
+            current,
+            "relative_humidity_2m"
         )
 
-
-        cloud_low = interpolate(
-            current_time,
-            "cloud_cover_low"
-        )
-
-
-        cloud_mid = interpolate(
-            current_time,
-            "cloud_cover_mid"
-        )
-
-
-        cloud_high = interpolate(
-            current_time,
-            "cloud_cover_high"
-        )
-
-
-        wind_speed = interpolate(
-            current_time,
+        wind_icon = interpolate_value(
+            icon_data,
+            current,
             "wind_speed_10m"
         )
 
-
-        wind_gust = interpolate(
-            current_time,
+        gust_icon = interpolate_value(
+            icon_data,
+            current,
             "wind_gusts_10m"
         )
 
-
-        wind_direction = interpolate_direction(
-            current_time
+        direction_icon = interpolate_direction(
+            icon_data,
+            current,
+            "wind_direction_10m"
         )
 
+        cloud_icon = interpolate_value(
+            icon_data,
+            current,
+            "cloud_cover"
+        )
 
-        solar = interpolate(
-            current_time,
+        low_cloud_icon = interpolate_value(
+            icon_data,
+            current,
+            "cloud_cover_low"
+        )
+
+        solar_icon = interpolate_value(
+            icon_data,
+            current,
             "shortwave_radiation"
         )
 
-
-        direct_solar = interpolate(
-            current_time,
-            "direct_radiation"
-        )
-
-
-        pbl = interpolate(
-            current_time,
+        pbl_icon = interpolate_value(
+            icon_data,
+            current,
             "boundary_layer_height"
         )
 
-
-        cape = interpolate(
-            current_time,
+        cape_icon = interpolate_value(
+            icon_data,
+            current,
             "cape"
         )
 
 
-        # ----------------------------------------------------
-        # NYOMÁSSZINTI ADATOK
-        # ----------------------------------------------------
+        if pd.isna(dew_icon):
 
-        temp_1000 = interpolate(
-            current_time,
-            "temperature_1000hPa"
-        )
-
-
-        temp_950 = interpolate(
-            current_time,
-            "temperature_950hPa"
-        )
-
-
-        temp_900 = interpolate(
-            current_time,
-            "temperature_900hPa"
-        )
-
-
-        temp_850 = interpolate(
-            current_time,
-            "temperature_850hPa"
-        )
-
-
-        height_1000 = interpolate(
-            current_time,
-            "geopotential_height_1000hPa"
-        )
-
-
-        height_950 = interpolate(
-            current_time,
-            "geopotential_height_950hPa"
-        )
-
-
-        height_900 = interpolate(
-            current_time,
-            "geopotential_height_900hPa"
-        )
-
-
-        height_850 = interpolate(
-            current_time,
-            "geopotential_height_850hPa"
-        )
+            dew_icon = dewpoint_from_rh(
+                temp_icon,
+                rh_icon
+            )
 
 
         # ----------------------------------------------------
-        # VITORLÁZÓREPÜLÉSI SZÁMÍTÁS
+        # ICON SOUNDING
         # ----------------------------------------------------
 
-        parameters = calculate_gliding_parameters(
+        profile = {}
 
-            temp=temp,
 
-            dewpoint=dewpoint,
+        for pressure in [
+            1000,
+            975,
+            950,
+            925,
+            900,
+            850
+        ]:
 
-            cloud_cover=cloud_cover,
+            profile[
+                f"height_{pressure}"
+            ] = interpolate_value(
+                icon_data,
+                current,
+                f"geopotential_height_{pressure}hPa"
+            )
 
-            cloud_low=cloud_low,
 
-            solar_radiation=solar,
+            profile[
+                f"rh_{pressure}"
+            ] = interpolate_value(
+                icon_data,
+                current,
+                f"relative_humidity_{pressure}hPa"
+            )
 
-            direct_radiation=direct_solar,
 
-            pbl_height=pbl,
+            profile[
+                f"cloud_{pressure}"
+            ] = interpolate_value(
+                icon_data,
+                current,
+                f"cloud_cover_{pressure}hPa"
+            )
 
-            cape=cape,
 
-            wind_speed=wind_speed,
+        # ----------------------------------------------------
+        # LCL
+        # ----------------------------------------------------
 
-            temp_1000=temp_1000,
-
-            temp_950=temp_950,
-
-            temp_900=temp_900,
-
-            temp_850=temp_850,
-
-            height_1000=height_1000,
-
-            height_950=height_950,
-
-            height_900=height_900,
-
-            height_850=height_850,
-
-            elevation=elevation
-
+        lcl = lcl_height(
+            temp_icon,
+            dew_icon
         )
 
 
         # ----------------------------------------------------
-        # FELHŐZET
+        # MODELLFELHŐALAP
         # ----------------------------------------------------
 
-        if cloud_cover < 15:
-
-            cloud_text = "SKC"
-
-        elif cloud_cover < 40:
-
-            cloud_text = "FEW"
-
-        elif cloud_cover < 75:
-
-            cloud_text = "SCT"
-
-        else:
-
-            cloud_text = "BKN/OVC"
+        model_base = model_cloud_base(
+            profile,
+            elevation
+        )
 
 
         # ----------------------------------------------------
-        # SZÉLNYÍRÁS / ERŐS SZÉL
+        # JAVASOLT FELHŐALAP
         # ----------------------------------------------------
 
-        if wind_speed < 18:
-
-            wind_shear = "Alacsony"
-
-        elif wind_speed < 25:
-
-            wind_shear = "Mérsékelt"
-
-        elif wind_speed < 32:
-
-            wind_shear = "Erős"
-
-        else:
-
-            wind_shear = "Nagyon erős"
+        cloud_base = calculate_cloud_base(
+            temp_icon,
+            dew_icon,
+            low_cloud_icon,
+            lcl,
+            model_base
+        )
 
 
         # ----------------------------------------------------
-        # REPÜLÉSI MINŐSÍTÉS
+        # HŐMÉRSÉKLETI GRADIENS
         # ----------------------------------------------------
 
-        flyability = parameters[
-            "flyability"
+        lapse_values = []
+
+
+        pairs = [
+
+            (1000, 975),
+            (975, 950),
+            (950, 925),
+            (925, 900),
+            (900, 850)
+
         ]
+
+
+        for low, high in pairs:
+
+            t1 = interpolate_value(
+                icon_data,
+                current,
+                f"temperature_{low}hPa"
+            )
+
+            t2 = interpolate_value(
+                icon_data,
+                current,
+                f"temperature_{high}hPa"
+            )
+
+            h1 = interpolate_value(
+                icon_data,
+                current,
+                f"geopotential_height_{low}hPa"
+            )
+
+            h2 = interpolate_value(
+                icon_data,
+                current,
+                f"geopotential_height_{high}hPa"
+            )
+
+
+            if any(
+                pd.isna(x)
+                for x in [
+                    t1,
+                    t2,
+                    h1,
+                    h2
+                ]
+            ):
+
+                continue
+
+
+            dh = (
+                h2 -
+                h1
+            )
+
+
+            if dh > 50:
+
+                lapse = (
+                    t1 -
+                    t2
+                ) / dh * 1000
+
+                lapse_values.append(
+                    lapse
+                )
+
+
+        if lapse_values:
+
+            lapse_rate = np.mean(
+                lapse_values
+            )
+
+        else:
+
+            lapse_rate = np.nan
+
+
+        # ----------------------------------------------------
+        # TERMÉK ICON
+        # ----------------------------------------------------
+
+        thermal_icon = calculate_thermal_strength(
+            temp_icon,
+            dew_icon,
+            cloud_icon,
+            solar_icon,
+            pbl_icon,
+            cape_icon,
+            lapse_rate,
+            wind_icon,
+            cloud_base
+        )
+
+
+        # ----------------------------------------------------
+        # ECMWF
+        # ----------------------------------------------------
+
+        temp_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "temperature_2m"
+        )
+
+        dew_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "dew_point_2m"
+        )
+
+        wind_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "wind_speed_10m"
+        )
+
+        cloud_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "cloud_cover"
+        )
+
+        solar_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "shortwave_radiation"
+        )
+
+        pbl_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "boundary_layer_height"
+        )
+
+        cape_ecmwf = interpolate_value(
+            ecmwf_data,
+            current,
+            "cape"
+        )
+
+
+        if pd.isna(dew_ecmwf):
+
+            rh_ecmwf = interpolate_value(
+                ecmwf_data,
+                current,
+                "relative_humidity_2m"
+            )
+
+            dew_ecmwf = dewpoint_from_rh(
+                temp_ecmwf,
+                rh_ecmwf
+            )
+
+
+        lcl_ecmwf = lcl_height(
+            temp_ecmwf,
+            dew_ecmwf
+        )
+
+
+        thermal_ecmwf = calculate_thermal_strength(
+
+            temp_ecmwf,
+
+            dew_ecmwf,
+
+            cloud_ecmwf,
+
+            solar_ecmwf,
+
+            pbl_ecmwf,
+
+            cape_ecmwf,
+
+            lapse_rate,
+
+            wind_ecmwf,
+
+            lcl_ecmwf
+
+        )
+
+
+        # ----------------------------------------------------
+        # MODELLEK ÖSSZEHASONLÍTÁSA
+        # ----------------------------------------------------
+
+        thermal_consensus, confidence = (
+            calculate_model_consensus(
+                thermal_icon,
+                thermal_ecmwf
+            )
+        )
+
+
+        if not pd.isna(
+            lcl_ecmwf
+        ):
+
+            cloud_base_ecmwf = lcl_ecmwf
+
+        else:
+
+            cloud_base_ecmwf = np.nan
+
+
+        # ----------------------------------------------------
+        # SZÉL
+        # ----------------------------------------------------
+
+        wind = wind_icon
+
+        gust = gust_icon
+
+        direction = direction_icon
+
+
+        if pd.isna(wind):
+
+            wind = wind_ecmwf
+
+
+        if pd.isna(cloud_icon):
+
+            cloud_icon = cloud_ecmwf
+
+
+        if pd.isna(solar_icon):
+
+            solar_icon = solar_ecmwf
+
+
+        # ----------------------------------------------------
+        # TÁV
+        # ----------------------------------------------------
+
+        recommended_distance = (
+            calculate_recommended_distance(
+
+                cloud_base,
+
+                thermal_consensus,
+
+                wind,
+
+                gust,
+
+                glide_ratio,
+
+                comfort_factor,
+
+                confidence
+
+            )
+        )
+
+
+        # ----------------------------------------------------
+        # REPÜLHETŐSÉG
+        # ----------------------------------------------------
+
+        if thermal_consensus < 0.6:
+
+            flyability = (
+                "Gyenge / termikszegény"
+            )
+
+        elif thermal_consensus < 1.2:
+
+            flyability = "Gyenge"
+
+        elif thermal_consensus < 2.0:
+
+            flyability = "Mérsékelt"
+
+        elif thermal_consensus < 3.0:
+
+            flyability = "Jó"
+
+        elif thermal_consensus < 4.0:
+
+            flyability = "Nagyon jó"
+
+        else:
+
+            flyability = "Erős"
+
+
+        # ----------------------------------------------------
+        # TÚLFEJLŐDÉS
+        # ----------------------------------------------------
+
+        overdevelopment_score = 0
+
+
+        if cloud_icon > 70:
+
+            overdevelopment_score += 0.35
+
+
+        if cloud_icon > 85:
+
+            overdevelopment_score += 0.25
+
+
+        if not pd.isna(cape_icon):
+
+            if cape_icon > 500:
+
+                overdevelopment_score += 0.15
+
+            if cape_icon > 1000:
+
+                overdevelopment_score += 0.20
+
+
+        if (
+            not pd.isna(dew_icon)
+            and
+            not pd.isna(temp_icon)
+            and
+            temp_icon - dew_icon < 4
+        ):
+
+            overdevelopment_score += 0.15
+
+
+        if overdevelopment_score < 0.25:
+
+            overdevelopment = "Alacsony"
+
+        elif overdevelopment_score < 0.55:
+
+            overdevelopment = "Közepes"
+
+        elif overdevelopment_score < 0.75:
+
+            overdevelopment = "Magas"
+
+        else:
+
+            overdevelopment = "Nagyon magas"
 
 
         # ----------------------------------------------------
         # DATA ROW
         # ----------------------------------------------------
 
-        data_rows.append({
+        rows.append({
 
             "Időpont":
-                time_str,
+                current.strftime("%H:%M"),
 
-            "Hőmérséklet (°C)":
+            "Hőmérséklet":
                 round(
-                    temp,
+                    temp_icon,
                     1
                 ),
 
-            "Harmatpont (°C)":
+            "Harmatpont":
                 round(
-                    dewpoint,
+                    dew_icon,
                     1
                 ),
 
-            "Termik (m/s)":
-                parameters[
-                    "thermal_strength"
-                ],
-
-            "Felhőalap AGL (m)":
-                parameters[
-                    "cloud_base_agl"
-                ],
-
-            "Felhőalap QNH (m)":
-                parameters[
-                    "cloud_base_msl"
-                ],
-
-            "LCL AGL (m)":
-                parameters[
-                    "lcl_agl"
-                ],
-
-            "PBL (m)":
-                parameters[
-                    "pbl_height"
-                ],
-
-            "CAPE (J/kg)":
-                round(
-                    cape,
-                    0
+            "LCL AGL":
+                int(
+                    round(lcl)
                 )
-                if not pd.isna(cape)
+                if not pd.isna(lcl)
                 else 0,
 
-            "Lapse rate (°C/km)":
-                parameters[
-                    "lapse_rate"
-                ],
+            "Modell alap AGL":
+                int(
+                    round(model_base)
+                )
+                if not pd.isna(model_base)
+                else 0,
+
+            "Javasolt Cu-alap":
+                int(
+                    round(cloud_base)
+                )
+                if not pd.isna(cloud_base)
+                else 0,
+
+            "Termik ICON":
+                round(
+                    thermal_icon,
+                    1
+                ),
+
+            "Termik ECMWF":
+                round(
+                    thermal_ecmwf,
+                    1
+                ),
+
+            "Termik konszenzus":
+                round(
+                    thermal_consensus,
+                    1
+                ),
+
+            "Bizonytalanság":
+                confidence,
+
+            "PBL":
+                int(
+                    round(pbl_icon)
+                )
+                if not pd.isna(pbl_icon)
+                else 0,
+
+            "CAPE":
+                int(
+                    round(cape_icon)
+                )
+                if not pd.isna(cape_icon)
+                else 0,
+
+            "Lapse rate":
+                round(
+                    lapse_rate,
+                    1
+                )
+                if not pd.isna(lapse_rate)
+                else 0,
 
             "Felhőzet":
-                cloud_text,
-
-            "Felhőzet (%)":
-                round(
-                    cloud_cover,
-                    0
-                ),
+                int(
+                    round(cloud_icon)
+                )
+                if not pd.isna(cloud_icon)
+                else 0,
 
             "Szél":
                 (
-                    f"{int(round(wind_direction))}° / "
-                    f"{int(round(wind_speed))} km/h"
-                ),
+                    f"{int(round(direction))}° / "
+                    f"{int(round(wind))} km/h"
+                )
+                if not pd.isna(direction)
+                else "-",
 
-            "Szél (km/h)":
-                round(
-                    wind_speed,
-                    1
-                ),
-
-            "Lökés (km/h)":
-                round(
-                    wind_gust,
-                    1
-                ),
-
-            "Napsugárzás (W/m²)":
-                round(
-                    solar,
-                    0
-                ),
-
-            "Szélnyírás":
-                wind_shear,
+            "Lökés":
+                int(
+                    round(gust)
+                )
+                if not pd.isna(gust)
+                else 0,
 
             "Túlfejlődés":
-                parameters[
-                    "overdevelopment"
-                ],
+                overdevelopment,
 
             "Repülhetőség":
-                flyability
+                flyability,
+
+            f"Javasolt táv ({selected_glider})":
+                recommended_distance
 
         })
 
 
-    # --------------------------------------------------------
-    # DATAFRAME
-    # --------------------------------------------------------
-
-    df_result = pd.DataFrame(
-        data_rows
-    )
-
-
-    numeric_columns = [
-
-        "Hőmérséklet (°C)",
-        "Harmatpont (°C)",
-        "Termik (m/s)",
-        "Felhőalap AGL (m)",
-        "Felhőalap QNH (m)",
-        "LCL AGL (m)",
-        "PBL (m)",
-        "CAPE (J/kg)",
-        "Lapse rate (°C/km)",
-        "Felhőzet (%)",
-        "Szél (km/h)",
-        "Lökés (km/h)",
-        "Napsugárzás (W/m²)"
-
-    ]
-
-
-    for column in numeric_columns:
-
-        df_result[
-            column
-        ] = pd.to_numeric(
-
-            df_result[
-                column
-            ],
-
-            errors="coerce"
-
-        )
-
-
-    # --------------------------------------------------------
-    # NAPI ÁTLAGOS SZÉL
-    # --------------------------------------------------------
-
-    base_wind_speed = int(
-        round(
-            df_result[
-                "Szél (km/h)"
-            ].mean()
-        )
-    )
-
-
-    wind_directions = []
-
-
-    for value in df_result[
-        "Szél"
-    ]:
-
-        try:
-
-            direction = int(
-                str(value)
-                .split("°")[0]
-            )
-
-            wind_directions.append(
-                direction
-            )
-
-        except Exception:
-
-            pass
-
-
-    base_wind_dir = circular_mean_degrees(
-        wind_directions
-    )
-
-
-    st.sidebar.success(
-        "📡 Valós modelladatok betöltve!"
-    )
-
-
-    return (
-        df_result,
-        base_wind_dir,
-        base_wind_speed
-    )
+    return pd.DataFrame(
+        rows
+    ), elevation
 
 
 # ============================================================
-# 11. ADATOK BETÖLTÉSE
+# 18. ADATOK BETÖLTÉSE
 # ============================================================
 
-df, w_dir, w_spd = get_pure_live_weather(
-    selected_field,
-    day_offset
-)
+with st.spinner(
+    "🌦️ ICON-D2 és ECMWF adatok betöltése..."
+):
+
+    df, field_elevation = get_weather_data(
+        selected_field,
+        day_offset
+    )
+
+
+if df.empty:
+
+    st.error(
+        "❌ Nem sikerült időjárási adatot betölteni."
+    )
+
+    st.stop()
 
 
 # ============================================================
-# 12. KPI-K
+# 19. KPI
 # ============================================================
 
 max_thermal = df[
-    "Termik (m/s)"
+    "Termik konszenzus"
 ].max()
 
 
 max_cloud_base = df[
-    "Felhőalap QNH (m)"
+    "Javasolt Cu-alap"
 ].max()
 
 
-max_pbl = df[
-    "PBL (m)"
+max_distance = df[
+    f"Javasolt táv ({selected_glider})"
 ].max()
 
 
-max_cape = df[
-    "CAPE (J/kg)"
-].max()
-
-
-mean_solar = df[
-    "Napsugárzás (W/m²)"
-].mean()
-
-
-col1, col2, col3, col4 = st.columns(4)
-
-
-col1.metric(
-    "Max. becsült termik",
-    f"{max_thermal:.1f} m/s"
-)
-
-
-col2.metric(
-    "Max. becsült felhőalap",
-    f"{int(max_cloud_base)} m QNH"
-)
-
-
-col3.metric(
-    "Alapszél",
-    f"{w_dir}° / {w_spd} km/h"
-)
-
-
-col4.metric(
-    f"{selected_glider} siklószám",
-    f"1:{glider_glide_ratio}"
-)
-
-
-# ============================================================
-# 13. TERMÁLIS ÁLLAPOT
-# ============================================================
-
-st.subheader(
-    "🌡️ Termikus állapot"
-)
-
-
-average_thermal = df[
-    "Termik (m/s)"
-].mean()
+best_index = df[
+    "Termik konszenzus"
+].idxmax()
 
 
 best_row = df.loc[
-    df["Termik (m/s)"].idxmax()
+    best_index
 ]
 
 
@@ -2004,119 +2274,201 @@ best_time = best_row[
 
 
 best_thermal = best_row[
-    "Termik (m/s)"
+    "Termik konszenzus"
 ]
 
 
 best_base = best_row[
-    "Felhőalap QNH (m)"
+    "Javasolt Cu-alap"
 ]
 
 
-if average_thermal < 0.6:
-
-    thermal_summary = (
-        "Gyenge termikus nap"
-    )
-
-elif average_thermal < 1.2:
-
-    thermal_summary = (
-        "Gyenge–mérsékelt termikus nap"
-    )
-
-elif average_thermal < 2.0:
-
-    thermal_summary = (
-        "Mérsékelt termikus nap"
-    )
-
-elif average_thermal < 3.0:
-
-    thermal_summary = (
-        "Jó termikus nap"
-    )
-
-elif average_thermal < 4.0:
-
-    thermal_summary = (
-        "Nagyon jó termikus nap"
-    )
-
-else:
-
-    thermal_summary = (
-        "Erősen konvektív nap"
-    )
+col1, col2, col3, col4 = st.columns(4)
 
 
-st.success(
-    f"**{thermal_summary}** — "
-    f"a modell szerint a legerősebb termikus időszak "
-    f"kb. **{best_time}**, "
-    f"becsült emeléssel **{best_thermal:.1f} m/s**."
+col1.metric(
+    "Max. termik",
+    f"{best_thermal:.1f} m/s"
+)
+
+
+col2.metric(
+    "Javasolt Cu-alap",
+    f"{int(best_base)} m"
+)
+
+
+col3.metric(
+    f"Kényelmes táv – {selected_glider}",
+    f"{int(max_distance)} km"
+)
+
+
+col4.metric(
+    "Legjobb időpont",
+    best_time
 )
 
 
 # ============================================================
-# 14. ADATTÁBLÁZAT
+# 20. MODELLBIZONYTALANSÁG
 # ============================================================
 
 st.subheader(
-    "📊 Negyedórás vitorlázórepülési előrejelzés"
+    "🎯 Modellkonszenzus"
 )
 
 
-display_columns = [
-
-    "Időpont",
-
-    "Hőmérséklet (°C)",
-
-    "Harmatpont (°C)",
-
-    "Termik (m/s)",
-
-    "Felhőalap AGL (m)",
-
-    "Felhőalap QNH (m)",
-
-    "PBL (m)",
-
-    "CAPE (J/kg)",
-
-    "Lapse rate (°C/km)",
-
-    "Felhőzet",
-
-    "Szél",
-
-    "Lökés (km/h)",
-
-    "Napsugárzás (W/m²)",
-
-    "Túlfejlődés",
-
-    "Repülhetőség"
-
-]
+confidence_counts = df[
+    "Bizonytalanság"
+].value_counts()
 
 
-st.dataframe(
+high_conf = confidence_counts.get(
+    "🟢 Magas",
+    0
+)
 
-    df[
-        display_columns
-    ],
+medium_conf = confidence_counts.get(
+    "🟡 Közepes",
+    0
+)
 
-    use_container_width=True,
+low_conf = confidence_counts.get(
+    "🔴 Alacsony",
+    0
+)
 
-    hide_index=True
 
+st.info(
+    f"🟢 Magas egyezés: {high_conf} időpont  |  "
+    f"🟡 Közepes: {medium_conf} időpont  |  "
+    f"🔴 Nagy eltérés: {low_conf} időpont"
 )
 
 
 # ============================================================
-# 15. TERMIK + FELHŐALAP GRAFIKON
+# 21. REPÜLÉSI ÖSSZEFOGLALÓ
+# ============================================================
+
+st.subheader(
+    "🛫 Repülési összefoglaló"
+)
+
+
+st.success(
+    f"""
+**{selected_field} — {target_date.strftime('%Y.%m.%d.')}**
+
+A modellkonszenzus szerint a legerősebb termikus időszak:
+**{best_time}**
+
+Becsült használható emelés:
+**{best_thermal:.1f} m/s**
+
+Konzervatív, vitorlázó célú felhőalap:
+**{int(best_base)} m AGL**
+
+A kiválasztott géppel
+(**{selected_glider}, 1:{glide_ratio}**)
+a jelenlegi modell alapján javasolt maximális komfortos táv:
+**{int(max_distance)} km**
+"""
+)
+
+
+# ============================================================
+# 22. TÁV TÍPUSONKÉNT
+# ============================================================
+
+st.subheader(
+    "🗺️ Javasolt komfortos táv géptípusonként"
+)
+
+
+# Legjobb napi időpontból számolunk.
+
+distance_rows = []
+
+
+for aircraft, aircraft_data in GLIDER_TYPES.items():
+
+    distance = calculate_recommended_distance(
+
+        best_base,
+
+        best_thermal,
+
+        best_row["Szél (km/h)"]
+        if "Szél (km/h)" in best_row
+        else float(
+            str(
+                best_row["Szél"]
+            ).split("/")[-1]
+            .replace("km/h", "")
+        ),
+
+        best_row["Lökés"],
+
+        aircraft_data[
+            "glide_ratio"
+        ],
+
+        aircraft_data[
+            "comfort_factor"
+        ],
+
+        best_row[
+            "Bizonytalanság"
+        ]
+
+    )
+
+
+    distance_rows.append({
+
+        "Repülőgép":
+            aircraft,
+
+        "Siklószám":
+            f"1:{aircraft_data['glide_ratio']}",
+
+        "Javasolt komfortos táv (km)":
+            distance
+
+    })
+
+
+distance_df = pd.DataFrame(
+    distance_rows
+)
+
+
+st.dataframe(
+    distance_df,
+    use_container_width=True,
+    hide_index=True
+)
+
+
+# ============================================================
+# 23. TELJES ADATTÁBLA
+# ============================================================
+
+st.subheader(
+    "📊 Negyedórás részletes előrejelzés"
+)
+
+
+st.dataframe(
+    df,
+    use_container_width=True,
+    hide_index=True
+)
+
+
+# ============================================================
+# 24. TERMÉK + FELHŐALAP GRAFIKON
 # ============================================================
 
 st.subheader(
@@ -2128,7 +2480,6 @@ fig = go.Figure()
 
 
 fig.add_trace(
-
     go.Scatter(
 
         x=df[
@@ -2136,58 +2487,100 @@ fig.add_trace(
         ],
 
         y=df[
-            "Termik (m/s)"
+            "Termik ICON"
         ],
 
-        name="Becsült termik",
+        name="ICON-D2 termik",
+
+        mode="lines",
+
+        line=dict(
+            width=2,
+            dash="dot"
+        )
+
+    )
+)
+
+
+fig.add_trace(
+    go.Scatter(
+
+        x=df[
+            "Időpont"
+        ],
+
+        y=df[
+            "Termik ECMWF"
+        ],
+
+        name="ECMWF termik",
+
+        mode="lines",
+
+        line=dict(
+            width=2,
+            dash="dash"
+        )
+
+    )
+)
+
+
+fig.add_trace(
+    go.Scatter(
+
+        x=df[
+            "Időpont"
+        ],
+
+        y=df[
+            "Termik konszenzus"
+        ],
+
+        name="Konszenzus",
 
         mode="lines+markers",
+
+        line=dict(
+            width=4
+        )
+
+    )
+)
+
+
+fig.add_trace(
+    go.Scatter(
+
+        x=df[
+            "Időpont"
+        ],
+
+        y=df[
+            "Javasolt Cu-alap"
+        ],
+
+        name="Cu-alap",
+
+        mode="lines",
 
         line=dict(
             width=3
         ),
 
-        yaxis="y1"
-
-    )
-
-)
-
-
-fig.add_trace(
-
-    go.Scatter(
-
-        x=df[
-            "Időpont"
-        ],
-
-        y=df[
-            "Felhőalap QNH (m)"
-        ],
-
-        name="Felhőalap QNH",
-
-        mode="lines",
-
-        line=dict(
-            width=3,
-            dash="dash"
-        ),
-
         yaxis="y2"
 
     )
-
 )
 
 
 fig.update_layout(
 
-    height=500,
+    height=550,
 
     xaxis=dict(
-        title="Időpont"
+        title="Idő"
     ),
 
     yaxis=dict(
@@ -2196,21 +2589,13 @@ fig.update_layout(
     ),
 
     yaxis2=dict(
-        title="Felhőalap (m QNH)",
+        title="Felhőalap (m AGL)",
         overlaying="y",
         side="right",
         rangemode="tozero"
     ),
 
-    hovermode="x unified",
-
-    legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="center",
-        x=0.5
-    )
+    hovermode="x unified"
 
 )
 
@@ -2222,18 +2607,18 @@ st.plotly_chart(
 
 
 # ============================================================
-# 16. PBL + CAPE
+# 25. TÁV GRAFIKON
 # ============================================================
 
 st.subheader(
-    "🌤️ Határréteg és konvektív energia"
+    f"🗺️ Komfortos táv – {selected_glider}"
 )
 
 
-fig2 = go.Figure()
+distance_fig = go.Figure()
 
 
-fig2.add_trace(
+distance_fig.add_trace(
 
     go.Scatter(
 
@@ -2242,68 +2627,33 @@ fig2.add_trace(
         ],
 
         y=df[
-            "PBL (m)"
+            f"Javasolt táv ({selected_glider})"
         ],
 
-        name="PBL",
+        mode="lines+markers",
 
-        mode="lines",
+        name="Javasolt táv",
 
         line=dict(
-            width=3
-        ),
-
-        yaxis="y1"
+            width=4
+        )
 
     )
 
 )
 
 
-fig2.add_trace(
+distance_fig.update_layout(
 
-    go.Scatter(
-
-        x=df[
-            "Időpont"
-        ],
-
-        y=df[
-            "CAPE (J/kg)"
-        ],
-
-        name="CAPE",
-
-        mode="lines",
-
-        line=dict(
-            width=2,
-            dash="dot"
-        ),
-
-        yaxis="y2"
-
-    )
-
-)
-
-
-fig2.update_layout(
-
-    height=450,
+    height=400,
 
     xaxis=dict(
-        title="Időpont"
+        title="Idő"
     ),
 
     yaxis=dict(
-        title="PBL (m)"
-    ),
-
-    yaxis2=dict(
-        title="CAPE (J/kg)",
-        overlaying="y",
-        side="right"
+        title="Javasolt komfortos táv (km)",
+        rangemode="tozero"
     ),
 
     hovermode="x unified"
@@ -2312,18 +2662,59 @@ fig2.update_layout(
 
 
 st.plotly_chart(
-    fig2,
+    distance_fig,
     use_container_width=True
 )
 
 
 # ============================================================
-# 17. SZÉL
+# 26. SZÉL
 # ============================================================
 
 st.subheader(
-    "💨 Szélsebesség"
+    "💨 Szél"
 )
+
+
+wind_values = []
+
+
+gust_values = []
+
+
+for value in df[
+    "Szél"
+]:
+
+    try:
+
+        speed = float(
+            str(value)
+            .split("/")[-1]
+            .replace(
+                "km/h",
+                ""
+            )
+        )
+
+        wind_values.append(
+            speed
+        )
+
+    except Exception:
+
+        wind_values.append(
+            np.nan
+        )
+
+
+for value in df[
+    "Lökés"
+]:
+
+    gust_values.append(
+        value
+    )
 
 
 wind_fig = go.Figure()
@@ -2337,9 +2728,7 @@ wind_fig.add_trace(
             "Időpont"
         ],
 
-        y=df[
-            "Szél (km/h)"
-        ],
+        y=wind_values,
 
         name="Szél",
 
@@ -2350,7 +2739,6 @@ wind_fig.add_trace(
         )
 
     )
-
 )
 
 
@@ -2362,11 +2750,9 @@ wind_fig.add_trace(
             "Időpont"
         ],
 
-        y=df[
-            "Lökés (km/h)"
-        ],
+        y=gust_values,
 
-        name="Széllökés",
+        name="Lökés",
 
         mode="lines",
 
@@ -2376,7 +2762,6 @@ wind_fig.add_trace(
         )
 
     )
-
 )
 
 
@@ -2385,7 +2770,7 @@ wind_fig.update_layout(
     height=400,
 
     xaxis=dict(
-        title="Időpont"
+        title="Idő"
     ),
 
     yaxis=dict(
@@ -2405,176 +2790,34 @@ st.plotly_chart(
 
 
 # ============================================================
-# 18. NAPSUGÁRZÁS
-# ============================================================
-
-st.subheader(
-    "☀️ Napsugárzás"
-)
-
-
-solar_fig = go.Figure()
-
-
-solar_fig.add_trace(
-
-    go.Scatter(
-
-        x=df[
-            "Időpont"
-        ],
-
-        y=df[
-            "Napsugárzás (W/m²)"
-        ],
-
-        name="Globális napsugárzás",
-
-        mode="lines",
-
-        line=dict(
-            width=3
-        )
-
-    )
-
-)
-
-
-solar_fig.update_layout(
-
-    height=350,
-
-    xaxis=dict(
-        title="Időpont"
-    ),
-
-    yaxis=dict(
-        title="W/m²",
-        rangemode="tozero"
-    ),
-
-    hovermode="x unified"
-
-)
-
-
-st.plotly_chart(
-    solar_fig,
-    use_container_width=True
-)
-
-
-# ============================================================
-# 19. REPÜLÉSI ÖSSZEFOGLALÓ
-# ============================================================
-
-st.subheader(
-    "🛫 Vitorlázórepülési összefoglaló"
-)
-
-
-thermal_rows = df[
-    df[
-        "Termik (m/s)"
-    ] >= 1.0
-]
-
-
-if len(thermal_rows) > 0:
-
-    thermal_start = thermal_rows.iloc[
-        0
-    ]["Időpont"]
-
-    thermal_end = thermal_rows.iloc[
-        -1
-    ]["Időpont"]
-
-    thermal_period = (
-        f"{thermal_start} – "
-        f"{thermal_end}"
-    )
-
-else:
-
-    thermal_period = (
-        "1 m/s feletti termikus időszak "
-        "nem valószínű"
-    )
-
-
-mean_wind = df[
-    "Szél (km/h)"
-].mean()
-
-
-max_wind = df[
-    "Lökés (km/h)"
-].max()
-
-
-mean_pbl = df[
-    "PBL (m)"
-].mean()
-
-
-mean_cape = df[
-    "CAPE (J/kg)"
-].mean()
-
-
-summary_text = f"""
-**Repülőtér:** {selected_field}
-
-**Nap:** {target_date.strftime('%Y.%m.%d.')}
-
-**Becsült termikus időszak:** {thermal_period}
-
-**Legjobb termikus időpont:** {best_time}
-
-**Max. becsült emelés:** {best_thermal:.1f} m/s
-
-**Becsült felhőalap:** {int(best_base)} m QNH
-
-**Átlagos PBL:** {int(mean_pbl)} m
-
-**Átlagos CAPE:** {int(mean_cape)} J/kg
-
-**Átlagos szél:** {mean_wind:.1f} km/h
-
-**Max. széllökés:** {int(max_wind)} km/h
-"""
-
-
-st.info(
-    summary_text
-)
-
-
-# ============================================================
-# 20. FONTOS FIGYELMEZTETÉS
+# 27. FONTOS REPÜLÉSBIZTONSÁGI MEGJEGYZÉS
 # ============================================================
 
 st.warning(
-    "⚠️ Ez egy modellalapú vitorlázórepülési becslés. "
-    "A termiksebesség és a felhőalap nem mérési adat, "
-    "és nem helyettesíti a hivatalos repülésmeteorológiai "
-    "információkat, METAR/TAF adatokat, szondázást, "
-    "radart, műholdképet vagy a helyi repülőtér "
-    "aktuális megfigyelését."
+    """
+⚠️ **Fontos:** a termiksebesség, felhőalap és javasolt táv
+modellalapú becslés. A „komfortos táv” nem biztonságos
+visszatérési távolság és nem repülési engedély.
+
+A tényleges repülés előtt ellenőrizni kell a METAR/TAF,
+aktuális szél-, csapadék-, radar- és műholdadatokat,
+valamint a helyi repülőtér és a pilóta aktuális
+repülésmeteorológiai információit.
+
+Erős szél, szélnyírás, túlfejlődő gomolyfelhő,
+front vagy zivataros környezet esetén a modell által
+számított távot nem szabad automatikusan elfogadni.
+"""
 )
 
 
 # ============================================================
-# 21. FORRÁS
+# 28. FORRÁS
 # ============================================================
 
-st.markdown("---")
-
 st.caption(
-    "Időjárási modelladatok: Open-Meteo / ECMWF IFS. "
-    "A termikus paraméterek saját, vitorlázórepülésre "
-    "hangolt modellbecslések."
+    "Modellek: DWD ICON-D2 + ECMWF IFS. "
+    "A vitorlázórepülési indexek saját számított "
+    "modellparaméterek."
 )
 
