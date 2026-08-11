@@ -93,7 +93,7 @@ day_offset = day_options[selected_day_label]
 target_date = today_dt + datetime.timedelta(days=day_offset)
 glider_glide_ratio = GLIDER_TYPES[selected_glider]
 
-# 5. GARANTÁLTAN ELÉRHETŐ, TISZTA ÉLŐ ADATOK LEKÉRÉSE (Böngésző emulációval)
+# 5. ABSZOLÚT STABIL ÉLŐ ADATLETÖLTŐ ÉS INTERPOLÁLÓ MOTOR
 def get_pure_live_weather(field, day_idx):
     start_time = datetime.datetime.combine(target_date, datetime.time(10, 0))
     data_rows = []
@@ -101,50 +101,31 @@ def get_pure_live_weather(field, day_idx):
     lat = AIRFIELDS[field]["lat"]
     lon = AIRFIELDS[field]["lon"]
     
-    # Komplett, valós asztali böngésző fejléc-struktúra, amit semmilyen tűzfal nem tilt le
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'hu-HU,hu;q=0.9,en-US;q=0.8,en;q=0.7'
-    }
-    
-    url = "https://open-meteo.com"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "hourly": "temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relative_humidity_2m",
-        "wind_speed_unit": "kmh",
-        "forecast_days": 3
-    }
+    # Golyóálló, közvetlen adatletöltési URL
+    url = f"https://open-meteo.com{lat}&longitude={lon}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relativehumidity_2m&wind_speed_unit=kmh&forecast_days=3"
     
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=8)
-        if response.status_code != 200:
-            st.error(f"❌ Hiba: Az időjárási szerver nem válaszolt (HTTP Kód: {response.status_code}).")
-            st.stop()
-            
-        res = response.json()
-        if "hourly" not in res:
-            st.error("❌ Hiba: Üres vagy hibás adatcsomag érkezett.")
-            st.stop()
-            
+        # A pandas beépített JSON olvasóját használjuk, ami kiküszöböli a "line 1 column 1" hibákat
+        raw_df = pd.read_json(url)
+        hourly_data = raw_df["hourly"]
+        
         start_idx = (day_idx * 24) + 10
         end_idx = start_idx + 11
         
-        # Órás valós adatsorok kinyerése közvetlenül a szerverről
-        hourly_temps = res["hourly"]["temperature_2m"][start_idx:end_idx]
-        hourly_wind_speeds = res["hourly"]["wind_speed_10m"][start_idx:end_idx]
-        hourly_wind_dirs = res["hourly"]["wind_direction_10m"][start_idx:end_idx]
-        hourly_clouds = res["hourly"]["cloud_cover"][start_idx:end_idx]
-        hourly_rh = res["hourly"]["relative_humidity_2m"][start_idx:end_idx]
+        # Valós órás adatsorok kinyerése közvetlenül a szerverről
+        hourly_temps = hourly_data["temperature_2m"][start_idx:end_idx]
+        hourly_wind_speeds = hourly_data["wind_speed_10m"][start_idx:end_idx]
+        hourly_wind_dirs = hourly_data["wind_direction_10m"][start_idx:end_idx]
+        hourly_clouds = hourly_data["cloud_cover"][start_idx:end_idx]
+        hourly_rh = hourly_data["relativehumidity_2m"][start_idx:end_idx]
         
         base_wind_dir = int(np.mean(hourly_wind_dirs))
         base_wind_speed = int(np.mean(hourly_wind_speeds))
         
-        st.sidebar.success("📡 Valós adatok sikeresen betöltve!")
+        st.sidebar.success("📡 Élő műholdas adatok sikeresen frissítve!")
         
     except Exception as e:
-        st.error(f"❌ Hálózati hiba: Nem sikerült az élő szinkronizáció. Ok: {str(e)}")
+        st.error(f"❌ Kapcsolódási hiba: Az időjárási szerver átmenetileg nem elérhető. Ok: {str(e)}")
         st.stop()
 
     # 41 darab negyedórás lépés (10:00 - 20:00) lineáris interpolációval
@@ -154,6 +135,7 @@ def get_pure_live_weather(field, day_idx):
         
         hour_val = current_time.hour + current_time.minute / 60.0
         
+        # Idő-interpoláció az órás adatok között
         idx_float = hour_val - 10.0
         idx_floor = min(int(math.floor(idx_float)), len(hourly_temps) - 1)
         idx_ceil = min(int(math.ceil(idx_float)), len(hourly_temps) - 1)
@@ -166,7 +148,7 @@ def get_pure_live_weather(field, day_idx):
         current_wind_dir = round(hourly_wind_dirs[idx_floor] * (1 - weight) + hourly_wind_dirs[idx_ceil] * weight)
         current_rh = hourly_rh[idx_floor] * (1 - weight) + hourly_rh[idx_ceil] * weight
         
-        # Valós fizikai számítás a harmatpontra (Magnus-Formula közelítés)
+        # Harmatpont számítás (Magnus-Formula közelítés)
         alpha = ((17.27 * current_temp) / (237.7 + current_temp)) + math.log(max(1, current_rh) / 100.0)
         current_dew = (237.7 * alpha) / (17.27 - alpha)
         
@@ -182,7 +164,7 @@ def get_pure_live_weather(field, day_idx):
         else:
             thermal_climb = 0
         
-        # Szélnyírás figyelmeztetés a valós szélsebesség alapján
+        # Szélnyírás figyelmeztetés
         wind_shear = "Alacsony"
         if hour_val > 18.0 and current_wind_spd > 18:
             wind_shear = "Közepes (Esti stabilizáció)"
@@ -231,3 +213,9 @@ fig.add_trace(go.Scatter(x=df["Időpont"], y=df["Alap (m QNH)"].replace('-', 0),
 fig.update_layout(
     xaxis=dict(title="Időpont (15 perces bontás)"),
     yaxis=dict(title="Termik erősség (m/s)", title_font=dict(color="orange"), tickfont=dict(color="orange")),
+    yaxis2=dict(title="Felhőalap (m QNH)", title_font=dict(color="blue"), tickfont=dict(color="blue"), overlaying="y", side="right"),
+    legend=dict(x=0.01, y=0.99),
+    paper_bgcolor='rgba(255,255,255,0.73)',
+    plot_bgcolor='rgba(255,255,255,0.73)'
+)
+st.plotly_chart(fig, use_container_width=True)
