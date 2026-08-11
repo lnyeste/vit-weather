@@ -602,8 +602,6 @@ def get_pure_live_weather(field, day_idx):
         base_wind_dir,
         base_wind_speed
     )
-```
-
 
 
 # 6. KPI KIJELZŐK
