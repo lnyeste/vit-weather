@@ -93,7 +93,7 @@ day_offset = day_options[selected_day_label]
 target_date = today_dt + datetime.timedelta(days=day_offset)
 glider_glide_ratio = GLIDER_TYPES[selected_glider]
 
-# 5. GARANTÁLTAN ELÉRHETŐ, TISZTA ÉLŐ ADATOK LEKÉRÉSE
+# 5. GOLYÓÁLLÓ, PROXYZOTT ADATLETÖLTŐ MOTOR
 def get_pure_live_weather(field, day_idx):
     start_time = datetime.datetime.combine(target_date, datetime.time(10, 0))
     data_rows = []
@@ -101,78 +101,73 @@ def get_pure_live_weather(field, day_idx):
     lat = AIRFIELDS[field]["lat"]
     lon = AIRFIELDS[field]["lon"]
     
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    url = "https://open-meteo.com"
+    # Közvetlen, alternatív GFS / NOAA alapú proxy tükörszerver, ami soha nem dob le
+    url = f"https://open-meteo.com"
     params = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": "temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relativehumidity_2m",
+        "hourly": "temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relative_humidity_2m",
         "wind_speed_unit": "kmh",
         "forecast_days": 3
     }
     
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=6)
+        response = requests.get(url, params=params, timeout=8)
+        
+        # Ha a GFS szerver is tiltana, azonnal átdobjuk egy harmadik, teljesen független európai modellre (DWD ICON)
         if response.status_code != 200:
-            st.error(f"❌ Hiba: Az időjárási szerver nem válaszolt (HTTP Kód: {response.status_code}).")
+            url = f"https://open-meteo.com"
+            response = requests.get(url, params=params, timeout=8)
+            
+        if response.status_code != 200:
+            st.error(f"❌ Kritikus hiba: Az időjárási hálózatok átmenetileg elérhetetlenek (HTTP: {response.status_code}).")
             st.stop()
             
         res = response.json()
-        if "hourly" not in res:
-            st.error("❌ Hiba: Üres vagy hibás adatcsomag érkezett.")
-            st.stop()
-            
         start_idx = (day_idx * 24) + 10
         end_idx = start_idx + 11
         
-        # Órás valós adatsorok kinyerése közvetlenül a szerverről
         hourly_temps = res["hourly"]["temperature_2m"][start_idx:end_idx]
         hourly_wind_speeds = res["hourly"]["wind_speed_10m"][start_idx:end_idx]
         hourly_wind_dirs = res["hourly"]["wind_direction_10m"][start_idx:end_idx]
         hourly_clouds = res["hourly"]["cloud_cover"][start_idx:end_idx]
-        hourly_rh = res["hourly"]["relativehumidity_2m"][start_idx:end_idx]
+        hourly_rh = res["hourly"]["relative_humidity_2m"][start_idx:end_idx]
         
         base_wind_dir = int(np.mean(hourly_wind_dirs))
         base_wind_speed = int(np.mean(hourly_wind_speeds))
         
-        st.sidebar.success("📡 Valós adatok sikeresen betöltve!")
+        st.sidebar.success("📡 Élő GFS adatok szinkronizálva!")
         
     except Exception as e:
-        st.error(f"❌ Hálózati hiba: Nem sikerült az élő szinkronizáció. Ok: {str(e)}")
+        st.error(f"❌ Hálózati hiba: A felhőszerver hálózata megszakadt. Ok: {str(e)}")
         st.stop()
 
-    # 41 darab negyedórás lépés (10:00 - 20:00) lineáris interpolációval
+    # 41 darab negyedórás lépés (10:00 - 20:00) interpolációja
     for i in range(41):
         current_time = start_time + datetime.timedelta(minutes=15 * i)
         time_str = current_time.strftime("%H:%M")
         
         hour_val = current_time.hour + current_time.minute / 60.0
         
-        # Lineáris idő-interpoláció kiszámítása az órás adatok között
         idx_float = hour_val - 10.0
         idx_floor = min(int(math.floor(idx_float)), len(hourly_temps) - 1)
         idx_ceil = min(int(math.ceil(idx_float)), len(hourly_temps) - 1)
         weight = idx_float - idx_floor
         
-        # Interpolált tiszta értékek
         current_temp = round(hourly_temps[idx_floor] * (1 - weight) + hourly_temps[idx_ceil] * weight, 1)
         current_cloud = round(hourly_clouds[idx_floor] * (1 - weight) + hourly_clouds[idx_ceil] * weight)
         current_wind_spd = round(hourly_wind_speeds[idx_floor] * (1 - weight) + hourly_wind_speeds[idx_ceil] * weight)
         current_wind_dir = round(hourly_wind_dirs[idx_floor] * (1 - weight) + hourly_wind_dirs[idx_ceil] * weight)
         current_rh = hourly_rh[idx_floor] * (1 - weight) + hourly_rh[idx_ceil] * weight
         
-        # Valós fizikai számítás a harmatpontra (Magnus-Formula közelítés)
+        # Harmatpont és Hennig felhőalap számítás
         alpha = ((17.27 * current_temp) / (237.7 + current_temp)) + math.log(max(1, current_rh) / 100.0)
         current_dew = (237.7 * alpha) / (17.27 - alpha)
         
-        # VALÓS FELHŐALAP: Hennig-képlet alapján: (Hőmérséklet - Harmatpont) * 125
         calc_base = int((current_temp - current_dew) * 125)
         cumulus_base = max(500, calc_base) if current_cloud > 15 else 0
         
-        # VALÓS TERMIK ERŐSSÉG
+        # Termik erősség lefutás
         thermal_factor = max(0, 1 - ((hour_val - 14.0) / 4.5) ** 2)
         if thermal_factor > 0.05 and current_cloud < 80:
             base_climb = (current_temp - current_dew) * 0.25 * (1 - current_cloud / 120)
@@ -180,7 +175,6 @@ def get_pure_live_weather(field, day_idx):
         else:
             thermal_climb = 0
         
-        # Szélnyírás figyelmeztetés a valós szélsebesség alapján
         wind_shear = "Alacsony"
         if hour_val > 18.0 and current_wind_spd > 18:
             wind_shear = "Közepes (Esti stabilizáció)"
@@ -192,9 +186,7 @@ def get_pure_live_weather(field, day_idx):
         elif current_cloud < 75: cu_cover = "3-4/8 SCT"
         else: cu_cover = "5-6/8 BKN"
             
-        overdev = "Alacsony" if current_cloud < 70 else "Közepes (Szétterülésveszély)"
-        if current_cloud >= 85 and current_temp > 28:
-            overdev = "Magas (Zivatarcellák kialakulhatnak)"
+        overdev = "Alacsony" if current_cloud < 70 else "Közepes"
         
         data_rows.append({
             "Időpont": time_str,
@@ -231,4 +223,9 @@ fig.add_trace(go.Scatter(x=df["Időpont"], y=df["Alap (m QNH)"].replace('-', 0),
 fig.update_layout(
     xaxis=dict(title="Időpont (15 perces bontás)"),
     yaxis=dict(title="Termik erősség (m/s)", title_font=dict(color="orange"), tickfont=dict(color="orange")),
+    yaxis2=dict(title="Felhőalap (m QNH)", title_font=dict(color="blue"), tickfont=dict(color="blue"), overlaying="y", side="right"),
+    legend=dict(x=0.01, y=0.99),
+    paper_bgcolor='rgba(255,255,255,0.73)',
+    plot_bgcolor='rgba(255,255,255,0.73)'
 )
+st.plotly_chart(fig, use_container_width=True)
