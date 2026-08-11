@@ -109,7 +109,6 @@ def get_pure_live_weather(field, day_idx):
     params = {
         "latitude": lat,
         "longitude": lon,
-        # JAVÍTVA: relative_humidity_2m helyett relativehumidity_2m!
         "hourly": "temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relativehumidity_2m",
         "wind_speed_unit": "kmh",
         "forecast_days": 3
@@ -174,10 +173,10 @@ def get_pure_live_weather(field, day_idx):
         cumulus_base = max(500, calc_base) if current_cloud > 15 else 0
         
         # VALÓS TERMIK ERŐSSÉG
-        time_factor = max(0, 1 - ((hour_val - 14.0) / 4.5) ** 2)
-        if time_factor > 0.05 and current_cloud < 80:
+        thermal_factor = max(0, 1 - ((hour_val - 14.0) / 4.5) ** 2)
+        if thermal_factor > 0.05 and current_cloud < 80:
             base_climb = (current_temp - current_dew) * 0.25 * (1 - current_cloud / 120)
-            thermal_climb = round(max(0.5, min(base_climb * time_factor, 5.0)), 1)
+            thermal_climb = round(max(0.5, min(base_climb * thermal_factor, 5.0)), 1)
         else:
             thermal_climb = 0
         
