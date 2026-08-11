@@ -109,8 +109,8 @@ def get_pure_live_weather(field, day_idx):
     params = {
         "latitude": lat,
         "longitude": lon,
-        # KIZÁRÓLAG AZ ABSZOLÚT STABIL ALAPADATOKAT KÉRJÜK LE
-        "hourly": "temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relative_humidity_2m",
+        # JAVÍTVA: relative_humidity_2m helyett relativehumidity_2m!
+        "hourly": "temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,relativehumidity_2m",
         "wind_speed_unit": "kmh",
         "forecast_days": 3
     }
@@ -134,7 +134,7 @@ def get_pure_live_weather(field, day_idx):
         hourly_wind_speeds = res["hourly"]["wind_speed_10m"][start_idx:end_idx]
         hourly_wind_dirs = res["hourly"]["wind_direction_10m"][start_idx:end_idx]
         hourly_clouds = res["hourly"]["cloud_cover"][start_idx:end_idx]
-        hourly_rh = res["hourly"]["relative_humidity_2m"][start_idx:end_idx] # Relatív páratartalom a harmatponthoz
+        hourly_rh = res["hourly"]["relativehumidity_2m"][start_idx:end_idx]
         
         base_wind_dir = int(np.mean(hourly_wind_dirs))
         base_wind_speed = int(np.mean(hourly_wind_speeds))
@@ -173,11 +173,9 @@ def get_pure_live_weather(field, day_idx):
         calc_base = int((current_temp - current_dew) * 125)
         cumulus_base = max(500, calc_base) if current_cloud > 15 else 0
         
-        # VALÓS TERMIK ERŐSSÉG: A felszíni felmelegedés és a felhőzet arányából származtatva (tiszta fizika)
-        # Időbeli haranggörbe tényező (csúcs 14:00-kor)
+        # VALÓS TERMIK ERŐSSÉG
         time_factor = max(0, 1 - ((hour_val - 14.0) / 4.5) ** 2)
         if time_factor > 0.05 and current_cloud < 80:
-            # Minél melegebb van és minél kevesebb a felhő, annál jobb az emelés
             base_climb = (current_temp - current_dew) * 0.25 * (1 - current_cloud / 120)
             thermal_climb = round(max(0.5, min(base_climb * time_factor, 5.0)), 1)
         else:
@@ -190,7 +188,6 @@ def get_pure_live_weather(field, day_idx):
         elif current_wind_spd > 25:
             wind_shear = "Erős (Magas alapszél)"
             
-        # Felhőzet lefedettség okta (nyolcadok) besorolása a valós százalékból
         if current_cloud < 15: cu_cover = "0/8 SKC"
         elif current_cloud < 40: cu_cover = "1-2/8 FEW"
         elif current_cloud < 75: cu_cover = "3-4/8 SCT"
@@ -230,3 +227,8 @@ st.dataframe(df, use_container_width=True)
 st.subheader("Termik és Felhőalap napközbeni lefutása")
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=df["Időpont"], y=df["Termik (m/s)"].replace('-', 0), name="Termik erősség (m/s)", yaxis="y1", line=dict(color='orange', width=3)))
+fig.add_trace(go.Scatter(x=df["Időpont"], y=df["Alap (m QNH)"].replace('-', 0), name="Felhőalap (m QNH)", yaxis="y2", line=dict(color='blue', width=2, dash='dot')))
+
+fig.update_layout(
+    xaxis=dict(title="Időpont (15 perces bontás)"),
+    yaxis=dict(title="Termik erősség (m/s)", title_font=dict(color="orange"), tickfont=dict(color="orange")),
