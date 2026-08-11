@@ -93,7 +93,7 @@ day_offset = day_options[selected_day_label]
 target_date = today_dt + datetime.timedelta(days=day_offset)
 glider_glide_ratio = GLIDER_TYPES[selected_glider]
 
-# 5. GARANTÁLTAN ELÉRHETŐ ÉLŐ ADATLETÖLTŐ ÉS INTERPOLÁLÓ MOTOR (Javított, biztonságos struktúrával!)
+# 5. ABSZOLÚT STABIL ÉLŐ ADATLETÖLTŐ ÉS INTERPOLÁLÓ MOTOR
 def get_pure_live_weather(field, day_idx):
     start_time = datetime.datetime.combine(target_date, datetime.time(10, 0))
     data_rows = []
@@ -105,7 +105,6 @@ def get_pure_live_weather(field, day_idx):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     
-    # TISZTA ALAPCÍM ÉS KÜLÖNVÁLASZTOTT PARAMÉTEREK (A codec és URL hiba véglegesen elhárítva!)
     url = "https://open-meteo.com"
     params = {
         "latitude": lat,
@@ -232,3 +231,7 @@ fig.update_layout(
     yaxis=dict(title="Termik erősség (m/s)", title_font=dict(color="orange"), tickfont=dict(color="orange")),
     yaxis2=dict(title="Felhőalap (m QNH)", title_font=dict(color="blue"), tickfont=dict(color="blue"), overlaying="y", side="right"),
     legend=dict(x=0.01, y=0.99),
+    paper_bgcolor='rgba(255,255,255,0.73)',
+    plot_bgcolor='rgba(255,255,255,0.73)'
+)
+st.plotly_chart(fig, use_container_width=True)
