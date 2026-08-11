@@ -2577,4 +2577,4 @@ st.caption(
     "A termikus paraméterek saját, vitorlázórepülésre "
     "hangolt modellbecslések."
 )
-```
+
