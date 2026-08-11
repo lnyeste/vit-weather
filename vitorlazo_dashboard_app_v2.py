@@ -95,7 +95,7 @@ glider_glide_ratio = GLIDER_TYPES[selected_glider]
 
 # 5. STRAPABÍRÓ, IDŐZÓNA-BIZTOS ÉLŐ ADATFELDOLGOZÓ MOTOR
 
-```python
+
 def get_pure_live_weather(field, day_idx):
     """
     Open-Meteo alapú időjárás-lekérdezés.
