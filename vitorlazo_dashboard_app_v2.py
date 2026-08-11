@@ -93,7 +93,7 @@ day_offset = day_options[selected_day_label]
 target_date = today_dt + datetime.timedelta(days=day_offset)
 glider_glide_ratio = GLIDER_TYPES[selected_glider]
 
-# 5. ÚJ, GOLYÓÁLLÓ MET.NO ELŐREJELZŐ MOTOR
+# 5. GOLYÓÁLLÓ MET.NO ELŐREJELZŐ MOTOR (Tökéletesített URL-struktúrával)
 def get_pure_live_weather(field, day_idx):
     start_time = datetime.datetime.combine(target_date, datetime.time(10, 0))
     data_rows = []
@@ -101,16 +101,20 @@ def get_pure_live_weather(field, day_idx):
     lat = AIRFIELDS[field]["lat"]
     lon = AIRFIELDS[field]["lon"]
     
-    # A MET.no megkövetel egy egyedi repülőklubos azonosítót (User-Agent), így garantáltan nem tilt le
     headers = {
         'User-Agent': 'KvaszAndrasGlidingClubLHBC contact-nyestel@lhbc.hu'
     }
     
-    # Hivatalos európai MET.no API végpont
-    url = f"https://met.no{lat}&lon={lon}"
+    # FIX ALAPCÍM, perjelek és elgépelések nélkül!
+    url = "https://met.no"
+    params = {
+        "lat": lat,
+        "lon": lon
+    }
     
     try:
-        response = requests.get(url, headers=headers, timeout=8)
+        # A requests.get automatikusan és hibátlanul fűzi össze a címet a paraméterekkel
+        response = requests.get(url, params=params, headers=headers, timeout=8)
         if response.status_code != 200:
             st.error(f"❌ Hiba: Az európai időjárási szerver nem válaszolt (HTTP Kód: {response.status_code}).")
             st.stop()
@@ -122,25 +126,23 @@ def get_pure_live_weather(field, day_idx):
             
         timeseries = res["properties"]["timeseries"]
         
-        # Kiválasztjuk a kért nap (Ma/Holnap/Holnapután) 10:00 és 20:00 közötti órás szeletét
         hourly_temps = []
         hourly_wind_speeds = []
         hourly_wind_dirs = []
         hourly_clouds = []
         hourly_rh = []
         
-        # Megkeressük a céldátumnak megfelelő órákat az idősorban
         for ts in timeseries:
-            time_dt = datetime.datetime.strptime(ts["time"], "%Y-%m-%dT%H:%M:%SZ") + datetime.timedelta(hours=2) # Átváltás magyar időre (CEST)
+            # Időzóna korrekció (+2 óra a magyar időhöz)
+            time_dt = datetime.datetime.strptime(ts["time"], "%Y-%m-%dT%H:%M:%SZ") + datetime.timedelta(hours=2)
             if time_dt.date() == target_date and 10 <= time_dt.hour <= 20:
                 instant = ts["data"]["instant"]["details"]
                 hourly_temps.append(instant["air_temperature"])
-                hourly_wind_speeds.append(instant["wind_speed"] * 3.6) # m/s-ból km/h
+                hourly_wind_speeds.append(instant["wind_speed"] * 3.6) # m/s -> km/h
                 hourly_wind_dirs.append(instant["wind_from_direction"])
                 hourly_clouds.append(instant.get("cloud_area_fraction", 40))
                 hourly_rh.append(instant["relative_humidity"])
                 
-        # Biztonsági ellenőrzés, ha a többedik nap vége hiányos lenne az API-ban
         if len(hourly_temps) < 11:
             st.error("❌ Hiba: A választott nap adatai még nem érhetők el a műholdas hálózaton.")
             st.stop()
@@ -161,7 +163,6 @@ def get_pure_live_weather(field, day_idx):
         
         hour_val = current_time.hour + current_time.minute / 60.0
         
-        # Idő-interpoláció az órás adatok között
         idx_float = hour_val - 10.0
         idx_floor = min(int(math.floor(idx_float)), len(hourly_temps) - 1)
         idx_ceil = min(int(math.ceil(idx_float)), len(hourly_temps) - 1)
@@ -181,7 +182,7 @@ def get_pure_live_weather(field, day_idx):
         calc_base = int((current_temp - current_dew) * 125)
         cumulus_base = max(500, calc_base) if current_cloud > 15 else 0
         
-        # VALÓS TERMIK ERŐSSÉG (Felszíni melegedésből származtatva)
+        # VALÓS TERMIK ERŐSSÉG
         thermal_factor = max(0, 1 - ((hour_val - 14.0) / 4.5) ** 2)
         if thermal_factor > 0.05 and current_cloud < 80:
             base_climb = (current_temp - current_dew) * 0.25 * (1 - current_cloud / 120)
@@ -232,3 +233,4 @@ st.dataframe(df, use_container_width=True)
 # 8. GRAFIKON
 st.subheader("Termik és Felhőalap napközbeni lefutása")
 fig = go.Figure()
+fig.add_trace(go.Scatter(x=df["Időpont"], y=df["Termik (m/s)"].replace('-', 0), name="Termik erősség (m/s)", yaxis="y1", line=dict(color='orange', width=3)))
