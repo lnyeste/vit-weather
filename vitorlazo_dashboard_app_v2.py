@@ -231,3 +231,4 @@ fig.add_trace(go.Scatter(x=df["Időpont"], y=df["Alap (m QNH)"].replace('-', 0),
 fig.update_layout(
     xaxis=dict(title="Időpont (15 perces bontás)"),
     yaxis=dict(title="Termik erősség (m/s)", title_font=dict(color="orange"), tickfont=dict(color="orange")),
+)
